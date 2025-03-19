@@ -1,0 +1,399 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Baby Posture Detection Test</title>
+    <style>
+        body {
+            font-family: Arial, sans-serif;
+            max-width: 1000px;
+            margin: 0 auto;
+            padding: 20px;
+        }
+        .container {
+            display: flex;
+            flex-direction: column;
+            gap: 20px;
+        }
+        .panel {
+            border: 1px solid #ddd;
+            border-radius: 5px;
+            padding: 20px;
+        }
+        .results {
+            margin-top: 20px;
+            padding: 15px;
+            border: 1px solid #ddd;
+            border-radius: 5px;
+            background-color: #f9f9f9;
+        }
+        .result-item {
+            margin-bottom: 10px;
+        }
+        .tabs {
+            display: flex;
+            margin-bottom: 20px;
+        }
+        .tab {
+            padding: 10px 20px;
+            cursor: pointer;
+            border: 1px solid #ddd;
+            border-radius: 5px 5px 0 0;
+            background-color: #f5f5f5;
+        }
+        .tab.active {
+            background-color: #fff;
+            border-bottom: 1px solid #fff;
+        }
+        .tab-content {
+            display: none;
+        }
+        .tab-content.active {
+            display: block;
+        }
+        .risk-high {
+            color: #d32f2f;
+            font-weight: bold;
+        }
+        .risk-medium {
+            color: #f57c00;
+            font-weight: bold;
+        }
+        .risk-low {
+            color: #388e3c;
+            font-weight: bold;
+        }
+        .loading {
+            display: none;
+            text-align: center;
+            margin: 20px 0;
+        }
+        .spinner {
+            border: 4px solid rgba(0, 0, 0, 0.1);
+            width: 36px;
+            height: 36px;
+            border-radius: 50%;
+            border-left-color: #09f;
+            animation: spin 1s linear infinite;
+            display: inline-block;
+        }
+        @keyframes spin {
+            0% { transform: rotate(0deg); }
+            100% { transform: rotate(360deg); }
+        }
+    </style>
+</head>
+<body>
+    <h1>Baby Posture Detection Test</h1>
+    
+    <div class="tabs">
+        <div class="tab active" data-tab="image">Image Processing</div>
+        <div class="tab" data-tab="video">Video Processing</div>
+    </div>
+    
+    <div class="container">
+        <div class="tab-content active" id="image-tab">
+            <div class="panel">
+                <h2>Test Image Upload</h2>
+                <form id="image-form">
+                    <div>
+                        <input type="file" id="image-file" accept="image/*" required>
+                    </div>
+                    <div style="margin-top: 10px;">
+                        <button type="submit">Detect Posture</button>
+                    </div>
+                </form>
+                
+                <div class="loading" id="image-loading">
+                    <div class="spinner"></div>
+                    <p>Processing image...</p>
+                </div>
+                
+                <div class="results" id="image-results" style="display: none;">
+                    <h3>Results</h3>
+                    <div class="result-item">
+                        <strong>Posture Type:</strong> <span id="posture-type"></span>
+                    </div>
+                    <div class="result-item">
+                        <strong>Risk Score:</strong> <span id="risk-score"></span>
+                    </div>
+                    <div class="result-item">
+                        <strong>Confidence:</strong> <span id="confidence"></span>
+                    </div>
+                    <div class="result-item">
+                        <strong>Details:</strong>
+                        <ul id="details-list"></ul>
+                    </div>
+                    <div class="result-item">
+                        <strong>Reasons:</strong>
+                        <ul id="reasons-list"></ul>
+                    </div>
+                    <div class="result-item">
+                        <strong>Processed Image:</strong>
+                        <div>
+                            <img id="processed-image" style="max-width: 100%; margin-top: 10px;">
+                        </div>
+                    </div>
+                </div>
+            </div>
+        </div>
+        
+        <div class="tab-content" id="video-tab">
+            <div class="panel">
+                <h2>Test Video Upload</h2>
+                <form id="video-form">
+                    <div>
+                        <input type="file" id="video-file" accept="video/*" required>
+                    </div>
+                    <div style="margin-top: 10px;">
+                        <label for="sample-rate">Sample Rate (frames per second):</label>
+                        <input type="number" id="sample-rate" min="1" max="10" value="2">
+                    </div>
+                    <div style="margin-top: 10px;">
+                        <button type="submit">Process Video</button>
+                    </div>
+                </form>
+                
+                <div class="loading" id="video-loading">
+                    <div class="spinner"></div>
+                    <p>Processing video... This may take a while.</p>
+                </div>
+                
+                <div class="results" id="video-results" style="display: none;">
+                    <h3>Video Analysis Results</h3>
+                    <div class="result-item">
+                        <strong>Status:</strong> <span id="video-status"></span>
+                    </div>
+                    <div class="result-item">
+                        <strong>Frames Processed:</strong> <span id="frames-processed"></span>
+                    </div>
+                    <div class="result-item">
+                        <strong>Duration:</strong> <span id="video-duration"></span> seconds
+                    </div>
+                    <div class="result-item">
+                        <strong>Posture Summary:</strong>
+                        <ul id="posture-summary"></ul>
+                    </div>
+                    <div class="result-item">
+                        <strong>Risk Periods:</strong>
+                        <ul id="risk-periods"></ul>
+                    </div>
+                </div>
+            </div>
+        </div>
+    </div>
+    
+    <script>
+        // Tab switching
+        document.querySelectorAll('.tab').forEach(tab => {
+            tab.addEventListener('click', () => {
+                document.querySelectorAll('.tab').forEach(t => t.classList.remove('active'));
+                document.querySelectorAll('.tab-content').forEach(c => c.classList.remove('active'));
+                
+                tab.classList.add('active');
+                document.getElementById(`${tab.dataset.tab}-tab`).classList.add('active');
+            });
+        });
+        
+        // Image form submission
+        document.getElementById('image-form').addEventListener('submit', async (e) => {
+            e.preventDefault();
+            
+            const fileInput = document.getElementById('image-file');
+            if (!fileInput.files.length) {
+                alert('Please select an image file');
+                return;
+            }
+            
+            const formData = new FormData();
+            formData.append('file', fileInput.files[0]);
+            
+            try {
+                document.getElementById('image-loading').style.display = 'block';
+                document.getElementById('image-results').style.display = 'none';
+                
+                const response = await fetch('/api/detect-posture/image', {
+                    method: 'POST',
+                    body: formData
+                });
+                
+                if (!response.ok) {
+                    throw new Error(`HTTP error! status: ${response.status}`);
+                }
+                
+                const result = await response.json();
+                displayImageResults(result);
+            } catch (error) {
+                console.error('Error:', error);
+                alert('Error processing image: ' + error.message);
+            } finally {
+                document.getElementById('image-loading').style.display = 'none';
+            }
+        });
+        
+        function displayImageResults(result) {
+            // Display posture type with appropriate color
+            const postureTypeElement = document.getElementById('posture-type');
+            postureTypeElement.textContent = result.posture_type;
+            if (result.posture_type === 'Nguy hiểm') {
+                postureTypeElement.className = 'risk-high';
+            } else if (result.posture_type === 'Có nguy cơ') {
+                postureTypeElement.className = 'risk-medium';
+            } else {
+                postureTypeElement.className = 'risk-low';
+            }
+            
+            // Display risk score
+            const riskScoreElement = document.getElementById('risk-score');
+            riskScoreElement.textContent = result.risk_score.toFixed(1) + '/10';
+            if (result.risk_score >= 7) {
+                riskScoreElement.className = 'risk-high';
+            } else if (result.risk_score >= 4) {
+                riskScoreElement.className = 'risk-medium';
+            } else {
+                riskScoreElement.className = 'risk-low';
+            }
+            
+            // Display confidence
+            document.getElementById('confidence').textContent = (result.confidence * 100).toFixed(1) + '%';
+            
+            // Display details
+            const detailsList = document.getElementById('details-list');
+            detailsList.innerHTML = '';
+            Object.entries(result.details).forEach(([key, value]) => {
+                if (value) {
+                    const li = document.createElement('li');
+                    li.textContent = formatDetailKey(key) + ': ' + (value === true ? 'Có' : value);
+                    detailsList.appendChild(li);
+                }
+            });
+            
+            // Display reasons
+            const reasonsList = document.getElementById('reasons-list');
+            reasonsList.innerHTML = '';
+            result.reasons.forEach(reason => {
+                const li = document.createElement('li');
+                li.textContent = reason;
+                reasonsList.appendChild(li);
+            });
+            
+            // Display processed image
+            if (result.annotated_image) {
+                document.getElementById('processed-image').src = 'data:image/jpeg;base64,' + result.annotated_image;
+            }
+            
+            document.getElementById('image-results').style.display = 'block';
+        }
+        
+        function formatDetailKey(key) {
+            const keyMap = {
+                'face_down': 'Úp mặt',
+                'prone': 'Nằm sấp',
+                'side_lying': 'Nằm nghiêng',
+                'limbs_bent': 'Gấp tay/chân',
+                'blanket_kicked': 'Đạp chăn'
+            };
+            return keyMap[key] || key;
+        }
+        
+        // Video form submission
+        document.getElementById('video-form').addEventListener('submit', async (e) => {
+            e.preventDefault();
+            
+            const fileInput = document.getElementById('video-file');
+            if (!fileInput.files.length) {
+                alert('Please select a video file');
+                return;
+            }
+            
+            const formData = new FormData();
+            formData.append('file', fileInput.files[0]);
+            formData.append('sample_rate', document.getElementById('sample-rate').value);
+            
+            try {
+                document.getElementById('video-loading').style.display = 'block';
+                document.getElementById('video-results').style.display = 'none';
+                
+                const response = await fetch('/api/detect-posture/video', {
+                    method: 'POST',
+                    body: formData
+                });
+                
+                if (!response.ok) {
+                    throw new Error(`HTTP error! status: ${response.status}`);
+                }
+                
+                const result = await response.json();
+                
+                // Poll for results
+                if (result.task_id) {
+                    pollVideoResult(result.task_id);
+                }
+            } catch (error) {
+                console.error('Error:', error);
+                alert('Error processing video: ' + error.message);
+                document.getElementById('video-loading').style.display = 'none';
+            }
+        });
+        
+        async function pollVideoResult(taskId) {
+            try {
+                const response = await fetch(`/api/detect-posture/video/${taskId}`);
+                if (!response.ok) {
+                    throw new Error(`HTTP error! status: ${response.status}`);
+                }
+                
+                const result = await response.json();
+                
+                if (result.status === 'processing') {
+                    // Continue polling
+                    setTimeout(() => pollVideoResult(taskId), 2000);
+                } else {
+                    // Display results
+                    displayVideoResults(result);
+                    document.getElementById('video-loading').style.display = 'none';
+                }
+            } catch (error) {
+                console.error('Error polling video result:', error);
+                alert('Error checking video processing status: ' + error.message);
+                document.getElementById('video-loading').style.display = 'none';
+            }
+        }
+        
+        function displayVideoResults(result) {
+            document.getElementById('video-status').textContent = result.status;
+            document.getElementById('frames-processed').textContent = result.frames_processed || 'N/A';
+            document.getElementById('video-duration').textContent = result.duration?.toFixed(1) || 'N/A';
+            
+            // Display posture summary
+            const postureSummary = document.getElementById('posture-summary');
+            postureSummary.innerHTML = '';
+            if (result.posture_summary) {
+                Object.entries(result.posture_summary).forEach(([posture, percentage]) => {
+                    const li = document.createElement('li');
+                    li.textContent = `${posture}: ${(percentage * 100).toFixed(1)}%`;
+                    postureSummary.appendChild(li);
+                });
+            }
+            
+            // Display risk periods
+            const riskPeriods = document.getElementById('risk-periods');
+            riskPeriods.innerHTML = '';
+            if (result.risk_periods && result.risk_periods.length > 0) {
+                result.risk_periods.forEach(period => {
+                    const li = document.createElement('li');
+                    li.textContent = `${period.posture_type} from ${period.start_time.toFixed(1)}s to ${period.end_time.toFixed(1)}s (${period.duration.toFixed(1)}s)`;
+                    riskPeriods.appendChild(li);
+                });
+            } else {
+                const li = document.createElement('li');
+                li.textContent = 'No risk periods detected';
+                riskPeriods.appendChild(li);
+            }
+            
+            document.getElementById('video-results').style.display = 'block';
+        }
+    </script>
+</body>
+</html>

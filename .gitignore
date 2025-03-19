@@ -1,0 +1,22 @@
+# Virtual Environment
+venv/
+.env
+.env.*  
+*.venv
+__pycache__/
+*.pyc
+*.pyo
+*.pyd
+
+# Database
+*.sqlite3
+*.db
+
+
+# Docker
+*.env
+docker-compose.override.yml
+
+# OS files
+.DS_Store
+Thumbs.db

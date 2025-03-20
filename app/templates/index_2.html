@@ -52,6 +52,54 @@
             background-color: #f8d7da;
             border-radius: 4px;
         }
+        /* Styles for keypoints visualization */
+        .keypoints-container {
+            margin-top: 20px;
+            border: 1px solid #ddd;
+            border-radius: 4px;
+            padding: 15px;
+            background-color: white;
+        }
+        
+        .keypoint-info {
+            max-height: 300px;
+            overflow-y: auto;
+            font-family: monospace;
+            font-size: 13px;
+            background-color: #f5f5f5;
+            padding: 10px;
+            border-radius: 4px;
+        }
+        
+        .joint-angle {
+            display: inline-block;
+            margin: 5px;
+            padding: 5px 10px;
+            background-color: #e2e3e5;
+            border-radius: 4px;
+            font-weight: bold;
+        }
+        
+        .keypoint-dot {
+            position: absolute;
+            width: 8px;
+            height: 8px;
+            border-radius: 50%;
+            background-color: red;
+            transform: translate(-50%, -50%);
+        }
+        
+        .pose-detection-container {
+            background-color: #f0f8ff;
+            padding: 15px;
+            border-radius: 4px;
+            margin-top: 20px;
+            box-shadow: 0 2px 4px rgba(0, 0, 0, 0.1);
+        }
+        
+        .tab-content {
+            padding: 15px 0;
+        }
     </style>
 </head>
 <body>
@@ -194,6 +242,120 @@
                                 </div>
                             </div>
                         </div>
+                        
+                        <!-- Pose Detection Section -->
+                        <div class="pose-detection-container">
+                            <h5>Pose Detection</h5>
+                            <div class="row mb-3">
+                                <div class="col-12">
+                                    <div class="d-flex align-items-center">
+                                        <button id="detectPoseBtn" class="btn btn-primary me-2" disabled>
+                                            Detect Pose
+                                        </button>
+                                        <div class="form-check ms-2">
+                                            <input class="form-check-input" type="checkbox" id="highResolutionPose" checked>
+                                            <label class="form-check-label" for="highResolutionPose">
+                                                High Resolution
+                                            </label>
+                                        </div>
+                                        <div class="form-check ms-3">
+                                            <input class="form-check-input" type="checkbox" id="includeAnnotatedImage" checked>
+                                            <label class="form-check-label" for="includeAnnotatedImage">
+                                                Show Annotated Image
+                                            </label>
+                                        </div>
+                                        <div class="form-check ms-3">
+                                            <input class="form-check-input" type="checkbox" id="includeAnalysis">
+                                            <label class="form-check-label" for="includeAnalysis">
+                                                Include Analysis
+                                            </label>
+                                        </div>
+                                    </div>
+                                </div>
+                            </div>
+                            
+                            <div id="poseResultsContainer" style="display: none;">
+                                <ul class="nav nav-tabs" id="poseTabs" role="tablist">
+                                    <li class="nav-item" role="presentation">
+                                        <button class="nav-link active" id="keypoints-tab" data-bs-toggle="tab" 
+                                                data-bs-target="#keypoints-tab-pane" type="button" role="tab" 
+                                                aria-controls="keypoints-tab-pane" aria-selected="true">
+                                            Keypoints
+                                        </button>
+                                    </li>
+                                    <li class="nav-item" role="presentation">
+                                        <button class="nav-link" id="visualization-tab" data-bs-toggle="tab" 
+                                                data-bs-target="#visualization-tab-pane" type="button" role="tab" 
+                                                aria-controls="visualization-tab-pane" aria-selected="false">
+                                            Visualization
+                                        </button>
+                                    </li>
+                                    <li class="nav-item" role="presentation">
+                                        <button class="nav-link" id="angles-tab" data-bs-toggle="tab" 
+                                                data-bs-target="#angles-tab-pane" type="button" role="tab" 
+                                                aria-controls="angles-tab-pane" aria-selected="false">
+                                            Joint Angles
+                                        </button>
+                                    </li>
+                                    <li class="nav-item" role="presentation">
+                                        <button class="nav-link" id="analysis-tab" data-bs-toggle="tab" 
+                                                data-bs-target="#analysis-tab-pane" type="button" role="tab" 
+                                                aria-controls="analysis-tab-pane" aria-selected="false">
+                                            Analysis
+                                        </button>
+                                    </li>
+                                </ul>
+                                
+                                <div class="tab-content" id="poseTabContent">
+                                    <!-- Keypoints data tab -->
+                                    <div class="tab-pane fade show active" id="keypoints-tab-pane" role="tabpanel" 
+                                         aria-labelledby="keypoints-tab" tabindex="0">
+                                        <div class="keypoints-info">
+                                            <div class="mb-2">
+                                                <strong>Detection Stats:</strong>
+                                                <span id="detectionStats"></span>
+                                            </div>
+                                            <div class="keypoint-info" id="keypointsData">
+                                                <p>No keypoints data available yet.</p>
+                                            </div>
+                                        </div>
+                                    </div>
+                                    
+                                    <!-- Visualization tab -->
+                                    <div class="tab-pane fade" id="visualization-tab-pane" role="tabpanel" 
+                                         aria-labelledby="visualization-tab" tabindex="0">
+                                        <div class="row">
+                                            <div class="col-12">
+                                                <div class="image-container">
+                                                    <div class="image-label">Pose Detection Results</div>
+                                                    <img id="annotatedImage" src="" alt="Pose detection visualization" 
+                                                         style="display: none; max-width: 100%; height: auto;">
+                                                    <p id="noAnnotatedMsg" class="text-muted text-center">
+                                                        No pose detection results yet
+                                                    </p>
+                                                </div>
+                                            </div>
+                                        </div>
+                                    </div>
+                                    
+                                    <!-- Joint Angles tab -->
+                                    <div class="tab-pane fade" id="angles-tab-pane" role="tabpanel" 
+                                         aria-labelledby="angles-tab" tabindex="0">
+                                        <div id="jointAnglesContainer">
+                                            <p>No joint angle data available yet.</p>
+                                        </div>
+                                    </div>
+                                    
+                                    <!-- Analysis tab -->
+                                    <div class="tab-pane fade" id="analysis-tab-pane" role="tabpanel" 
+                                         aria-labelledby="analysis-tab" tabindex="0">
+                                        <div id="analysisContainer">
+                                            <p>No analysis data available yet.</p>
+                                        </div>
+                                    </div>
+                                </div>
+                            </div>
+                        </div>
                     </div>
                 </div>
             </div>
@@ -213,6 +375,17 @@
             const loadingSpinner = document.getElementById('loadingSpinner');
             const qualityStats = document.getElementById('qualityStats');
             const debugText = document.getElementById('debugText');
+            const detectPoseBtn = document.getElementById('detectPoseBtn');
+            const highResolutionPose = document.getElementById('highResolutionPose');
+            const includeAnnotatedImage = document.getElementById('includeAnnotatedImage');
+            const includeAnalysis = document.getElementById('includeAnalysis');
+            const poseResultsContainer = document.getElementById('poseResultsContainer');
+            const keypointsData = document.getElementById('keypointsData');
+            const annotatedImage = document.getElementById('annotatedImage');
+            const noAnnotatedMsg = document.getElementById('noAnnotatedMsg');
+            const jointAnglesContainer = document.getElementById('jointAnglesContainer');
+            const analysisContainer = document.getElementById('analysisContainer');
+            const detectionStats = document.getElementById('detectionStats');
             
             // For debugging
             function logDebug(message) {
@@ -326,6 +499,9 @@
                     document.getElementById('procTime').textContent = (endTime - startTime).toFixed(2);
                     qualityStats.style.display = 'block';
                     
+                    // Enable pose detection button after image processing
+                    enablePoseDetection();
+                    
                 } catch (error) {
                     logDebug(`Error: ${error.message}`);
                     alert('Error: ' + error.message);
@@ -387,12 +563,236 @@
                     document.getElementById('procTime').textContent = (endTime - startTime).toFixed(2);
                     qualityStats.style.display = 'block';
                     
+                    // Enable pose detection button after image processing
+                    enablePoseDetection();
+                    
                 } catch (error) {
                     logDebug(`Error: ${error.message}`);
                     alert('Error: ' + error.message);
                 } finally {
                     // Hide loading spinner
                     loadingSpinner.style.display = 'none';
+                }
+            });
+
+            // Enable pose detection button when image is processed
+            const enablePoseDetection = function() {
+                detectPoseBtn.disabled = false;
+            };
+            
+            // Handle pose detection
+            detectPoseBtn.addEventListener('click', async function() {
+                clearDebug();
+                
+                const fileInput = document.getElementById('imageUpload');
+                if (!fileInput.files.length) {
+                    alert('Please select and process an image first!');
+                    return;
+                }
+                
+                if (!processedImage.src) {
+                    alert('Please process the image first!');
+                    return;
+                }
+                
+                logDebug("Starting pose detection...");
+                
+                // Show loading spinner
+                loadingSpinner.style.display = 'inline-block';
+                
+                // Create form data
+                const formData = new FormData();
+                formData.append('file', fileInput.files[0]);
+                formData.append('high_resolution', highResolutionPose.checked);
+                formData.append('include_annotated_image', includeAnnotatedImage.checked);
+                formData.append('include_analysis', includeAnalysis.checked);
+                
+                logDebug("Sending request to /api/pose/detect");
+                
+                try {
+                    const startTime = performance.now();
+                    const response = await fetch('/api/pose/detect', {
+                        method: 'POST',
+                        body: formData
+                    });
+                    
+                    logDebug(`Response status: ${response.status}`);
+                    
+                    if (!response.ok) {
+                        const errorData = await response.text();
+                        logDebug(`Error response: ${errorData}`);
+                        throw new Error(`Server error: ${response.status}`);
+                    }
+                    
+                    const data = await response.json();
+                    logDebug("Pose detection successful");
+                    const endTime = performance.now();
+                    
+                    // Display results
+                    displayPoseResults(data, endTime - startTime);
+                    
+                } catch (error) {
+                    logDebug(`Error: ${error.message}`);
+                    alert('Error: ' + error.message);
+                } finally {
+                    // Hide loading spinner
+                    loadingSpinner.style.display = 'none';
+                }
+            });
+            
+            // Display pose detection results
+            function displayPoseResults(data, clientProcessingTime) {
+                // Show results container
+                poseResultsContainer.style.display = 'block';
+                
+                // Display keypoints data
+                const keypoints = data.keypoints_data.keypoints;
+                let keypointsHtml = `<div><strong>Total keypoints:</strong> ${keypoints.length}</div>`;
+                
+                // Display detection stats
+                const totalTime = data.keypoints_data.total_processing_time_ms;
+                const mpTime = data.keypoints_data.processing_time_ms;
+                detectionStats.innerHTML = `
+                    <span class="badge bg-info">${keypoints.length} keypoints detected</span>
+                    <span class="badge bg-secondary ms-2">Server: ${totalTime.toFixed(1)} ms</span>
+                    <span class="badge bg-secondary ms-2">MediaPipe: ${mpTime.toFixed(1)} ms</span>
+                    <span class="badge bg-secondary ms-2">Client: ${clientProcessingTime.toFixed(1)} ms</span>
+                `;
+                
+                // Display filtered keypoints data in a table
+                keypointsHtml += '<table class="table table-sm table-striped mt-2">';
+                keypointsHtml += '<thead><tr><th>ID</th><th>Name</th><th>X</th><th>Y</th><th>Z</th><th>Conf</th></tr></thead><tbody>';
+                
+                // Show key body parts first (more relevant for baby posture)
+                const keyBodyParts = [0, 11, 12, 13, 14, 15, 16, 23, 24, 25, 26, 27, 28]; // IDs for key body parts
+                
+                keyBodyParts.forEach(id => {
+                    const keypoint = keypoints.find(kp => kp.id === id);
+                    if (keypoint) {
+                        const confidence = parseFloat(keypoint.confidence).toFixed(2);
+                        const rowClass = confidence < 0.5 ? 'table-danger' : '';
+                        
+                        keypointsHtml += `<tr class="${rowClass}">
+                            <td>${keypoint.id}</td>
+                            <td>${keypoint.name}</td>
+                            <td>${keypoint.x.toFixed(1)}</td>
+                            <td>${keypoint.y.toFixed(1)}</td>
+                            <td>${keypoint.z.toFixed(2)}</td>
+                            <td>${confidence}</td>
+                        </tr>`;
+                    }
+                });
+                
+                keypointsHtml += '</tbody></table>';
+                keypointsData.innerHTML = keypointsHtml;
+                
+                // Display annotated image if available
+                if (data.annotated_image) {
+                    annotatedImage.src = data.annotated_image;
+                    annotatedImage.style.display = 'block';
+                    noAnnotatedMsg.style.display = 'none';
+                } else {
+                    annotatedImage.style.display = 'none';
+                    noAnnotatedMsg.style.display = 'block';
+                    noAnnotatedMsg.textContent = "Annotated image not included in response";
+                }
+                
+                // Display joint angles
+                const angles = data.keypoints_data.joint_angles;
+                if (angles && Object.keys(angles).length > 0) {
+                    let anglesHtml = '<div class="row">';
+                    
+                    for (const [joint, angle] of Object.entries(angles)) {
+                        const displayName = joint.replace('_', ' ');
+                        anglesHtml += `
+                            <div class="col-md-3 col-sm-6 mb-2">
+                                <div class="joint-angle">
+                                    ${displayName}: ${angle}°
+                                </div>
+                            </div>
+                        `;
+                    }
+                    
+                    anglesHtml += '</div>';
+                    jointAnglesContainer.innerHTML = anglesHtml;
+                } else {
+                    jointAnglesContainer.innerHTML = '<p>No joint angle data available.</p>';
+                }
+                
+                // Display analysis if available
+                if (data.posture_analysis) {
+                    const analysis = data.posture_analysis;
+                    let analysisHtml = `
+                        <div class="card">
+                            <div class="card-body">
+                                <h5 class="card-title">Posture Analysis</h5>
+                                <div class="mb-3">
+                                    <strong>Symmetry Score:</strong> 
+                                    <div class="progress" style="height: 20px;">
+                                        <div class="progress-bar ${getScoreClass(analysis.symmetry_score)}" 
+                                             role="progressbar" 
+                                             style="width: ${analysis.symmetry_score}%;" 
+                                             aria-valuenow="${analysis.symmetry_score}" 
+                                             aria-valuemin="0" 
+                                             aria-valuemax="100">
+                                            ${analysis.symmetry_score}%
+                                        </div>
+                                    </div>
+                                </div>`;
+                    
+                    if (analysis.notes && analysis.notes.length > 0) {
+                        analysisHtml += '<div class="mb-2"><strong>Notes:</strong></div><ul>';
+                        analysis.notes.forEach(note => {
+                            analysisHtml += `<li>${note}</li>`;
+                        });
+                        analysisHtml += '</ul>';
+                    } else {
+                        analysisHtml += '<p>No specific notes available.</p>';
+                    }
+                    
+                    analysisHtml += '</div></div>';
+                    analysisContainer.innerHTML = analysisHtml;
+                } else {
+                    analysisContainer.innerHTML = '<p>No analysis data available.</p>';
+                }
+            }
+            
+            // Get appropriate color class based on score
+            function getScoreClass(score) {
+                if (score >= 80) return 'bg-success';
+                if (score >= 60) return 'bg-info';
+                if (score >= 40) return 'bg-warning';
+                return 'bg-danger';
+            }
+            
+            // Enable pose detection button after image processing
+            uploadForm.addEventListener('submit', async function(event) {
+                // ...existing code...
+                
+                try {
+                    // ...existing code...
+                    
+                    // After successful processing
+                    enablePoseDetection();
+                    
+                    // ...existing code...
+                } catch (error) {
+                    // ...existing code...
+                }
+            });
+            
+            mediapipeForm.addEventListener('submit', async function(event) {
+                // ...existing code...
+                
+                try {
+                    // ...existing code...
+                    
+                    // After successful processing
+                    enablePoseDetection();
+                    
+                    // ...existing code...
+                } catch (error) {
+                    // ...existing code...
                 }
             });
 

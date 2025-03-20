@@ -26,7 +26,7 @@ class ImagePreProcessor:
             await file.seek(0)
             content = await file.read()
             img = np.asarray(bytearray(content), dtype="uint8")
-            img = cv2.imdecode(img, cv2.IMREAD_COLOR)
+            img = cv2.imdecode(img, cv2.IMREAD_COLOR) 
             if img is None:
                 raise ValueError("Could not decode image")
             return img

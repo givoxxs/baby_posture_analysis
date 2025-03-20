@@ -1,0 +1,404 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Baby Posture Analysis - Image Processing</title>
+    <link href="https://cdn.jsdelivr.net/npm/bootstrap@5.3.0-alpha1/dist/css/bootstrap.min.css" rel="stylesheet">
+    <style>
+        body {
+            padding-top: 20px;
+            background-color: #f8f9fa;
+        }
+        .image-container {
+            position: relative;
+            margin-bottom: 20px;
+            border: 1px solid #ddd;
+            border-radius: 4px;
+            padding: 10px;
+            background-color: white;
+            min-height: 200px;
+        }
+        .image-container img {
+            max-width: 100%;
+            height: auto;
+        }
+        .image-label {
+            font-weight: bold;
+            margin-bottom: 10px;
+            color: #495057;
+        }
+        .card {
+            margin-bottom: 20px;
+            box-shadow: 0 4px 6px rgba(0, 0, 0, 0.1);
+        }
+        .card-header {
+            background-color: #6c757d;
+            color: white;
+            font-weight: bold;
+        }
+        #loadingSpinner {
+            display: none;
+        }
+        .quality-stats {
+            background-color: #e9ecef;
+            padding: 10px;
+            border-radius: 4px;
+            margin-top: 10px;
+        }
+        .debug-info {
+            margin-top: 20px;
+            padding: 10px;
+            background-color: #f8d7da;
+            border-radius: 4px;
+        }
+    </style>
+</head>
+<body>
+    <div class="container">
+        <h1 class="text-center mb-4">Baby Posture Analysis - Image Processing</h1>
+        
+        <div class="row">
+            <!-- Left Column: Upload & Process Controls -->
+            <div class="col-md-4">
+                <div class="card">
+                    <div class="card-header">Image Upload</div>
+                    <div class="card-body">
+                        <form id="uploadForm" enctype="multipart/form-data" method="post">
+                            <div class="mb-3">
+                                <label for="imageUpload" class="form-label">Select Image</label>
+                                <input type="file" 
+                                       class="form-control" 
+                                       id="imageUpload" 
+                                       name="file" 
+                                       accept="image/*"
+                                       required
+                                       onclick="this.value=null;">
+                                <div id="imageHelp" class="form-text">Supported formats: JPG, JPEG, PNG</div>
+                            </div>
+                            
+                            <div class="mb-3">
+                                <label class="form-label">Processing Options</label>
+                                <div class="form-check">
+                                    <input class="form-check-input" type="checkbox" id="applyResize" name="apply_resize" checked>
+                                    <label class="form-check-label" for="applyResize">
+                                        Resize Image (640x480)
+                                    </label>
+                                </div>
+                                <div class="form-check">
+                                    <input class="form-check-input" type="checkbox" id="applyNormalize" name="apply_normalize" checked>
+                                    <label class="form-check-label" for="applyNormalize">
+                                        Normalize Colors
+                                    </label>
+                                </div>
+                                <div class="form-check">
+                                    <input class="form-check-input" type="checkbox" id="applyFilter" name="apply_filter" checked>
+                                    <label class="form-check-label" for="applyFilter">
+                                        Apply Noise Filter
+                                    </label>
+                                </div>
+                            </div>
+                            
+                            <div class="mb-3">
+                                <label for="filterType" class="form-label">Filter Type</label>
+                                <select class="form-select" id="filterType" name="filter_type">
+                                    <option value="gaussian">Gaussian</option>
+                                    <option value="median">Median</option>
+                                </select>
+                            </div>
+                            
+                            <div class="d-grid gap-2">
+                                <button type="submit" class="btn btn-primary" id="processBtn">
+                                    Process Image
+                                </button>
+                            </div>
+                        </form>
+                        
+                        <div class="text-center mt-3">
+                            <div id="loadingSpinner" class="spinner-border text-primary" role="status">
+                                <span class="visually-hidden">Loading...</span>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+                
+                <div class="card">
+                    <div class="card-header">MediaPipe Optimization</div>
+                    <div class="card-body">
+                        <form id="mediapipeForm" enctype="multipart/form-data">
+                            <div class="form-check mb-3">
+                                <input class="form-check-input" type="checkbox" id="highResolution" name="high_resolution">
+                                <label class="form-check-label" for="highResolution">
+                                    High Resolution (720p)
+                                </label>
+                            </div>
+                            
+                            <div class="d-grid gap-2">
+                                <button type="submit" class="btn btn-success" id="mediapipeBtn">
+                                    Optimize for MediaPipe
+                                </button>
+                            </div>
+                        </form>
+                    </div>
+                </div>
+
+                <div class="card">
+                    <div class="card-header">Debug Information</div>
+                    <div class="card-body">
+                        <div id="debugInfo" class="debug-info">
+                            <pre id="debugText"></pre>
+                        </div>
+                    </div>
+                </div>
+            </div>
+            
+            <!-- Right Column: Image Display -->
+            <div class="col-md-8">
+                <div class="card">
+                    <div class="card-header">Image Processing Results</div>
+                    <div class="card-body">
+                        <div class="row">
+                            <!-- Original Image -->
+                            <div class="col-md-6">
+                                <div class="image-container">
+                                    <div class="image-label">Original Image</div>
+                                    <img id="originalImage" src="" alt="Upload an image to see the original" style="display: none;">
+                                    <p id="noOriginalMsg" class="text-muted text-center">
+                                        No image uploaded yet
+                                    </p>
+                                </div>
+                            </div>
+                            
+                            <!-- Processed Image -->
+                            <div class="col-md-6">
+                                <div class="image-container">
+                                    <div class="image-label">Processed Image</div>
+                                    <img id="processedImage" src="" alt="Process an image to see the result" style="display: none;">
+                                    <p id="noProcessedMsg" class="text-muted text-center">
+                                        No processed image yet
+                                    </p>
+                                </div>
+                            </div>
+                        </div>
+                        
+                        <!-- Image Quality Statistics -->
+                        <div id="qualityStats" class="quality-stats" style="display: none;">
+                            <h5>Image Quality Statistics</h5>
+                            <div class="row">
+                                <div class="col-md-6">
+                                    <p><strong>Original Dimensions:</strong> <span id="origDimensions">-</span></p>
+                                    <p><strong>Processed Dimensions:</strong> <span id="procDimensions">-</span></p>
+                                </div>
+                                <div class="col-md-6">
+                                    <p><strong>Processing Time:</strong> <span id="procTime">-</span> ms</p>
+                                </div>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <script src="https://cdn.jsdelivr.net/npm/bootstrap@5.3.0-alpha1/dist/js/bootstrap.bundle.min.js"></script>
+    <script>
+        document.addEventListener('DOMContentLoaded', function() {
+            // Get form elements
+            const uploadForm = document.getElementById('uploadForm');
+            const imageUpload = document.getElementById('imageUpload');
+            const originalImage = document.getElementById('originalImage');
+            const processedImage = document.getElementById('processedImage');
+            const noOriginalMsg = document.getElementById('noOriginalMsg');
+            const noProcessedMsg = document.getElementById('noProcessedMsg');
+            const loadingSpinner = document.getElementById('loadingSpinner');
+            const qualityStats = document.getElementById('qualityStats');
+            const debugText = document.getElementById('debugText');
+            
+            // For debugging
+            function logDebug(message) {
+                debugText.textContent += message + '\n';
+                console.log(message);
+            }
+            
+            // Clear debug
+            function clearDebug() {
+                debugText.textContent = '';
+            }
+            
+            // File input change handler with error checking
+            imageUpload.addEventListener('change', function(event) {
+                clearDebug();
+                const file = event.target.files[0];
+                
+                if (!file) {
+                    logDebug("No file selected");
+                    return;
+                }
+
+                // Validate file type
+                if (!file.type.startsWith('image/')) {
+                    logDebug("Invalid file type selected");
+                    alert('Please select an image file (JPG, JPEG, or PNG)');
+                    this.value = '';
+                    return;
+                }
+
+                logDebug(`File selected: ${file.name}, type: ${file.type}, size: ${file.size} bytes`);
+                
+                const reader = new FileReader();
+                reader.onerror = function(error) {
+                    logDebug(`Error reading file: ${error}`);
+                    alert('Error reading the selected file');
+                };
+                
+                reader.onload = function(e) {
+                    originalImage.src = e.target.result;
+                    originalImage.style.display = 'block';
+                    noOriginalMsg.style.display = 'none';
+                    
+                    // Get image dimensions
+                    const img = new Image();
+                    img.onload = function() {
+                        document.getElementById('origDimensions').textContent = `${img.width} x ${img.height}`;
+                        qualityStats.style.display = 'block';
+                    };
+                    img.onerror = function() {
+                        logDebug("Error loading image preview");
+                    };
+                    img.src = e.target.result;
+                };
+                
+                try {
+                    reader.readAsDataURL(file);
+                } catch (error) {
+                    logDebug(`Error initiating file read: ${error}`);
+                    alert('Error processing the selected file');
+                }
+            });
+            
+            // Process image form submit handler
+            uploadForm.addEventListener('submit', async function(event) {
+                event.preventDefault();
+                clearDebug();
+                
+                const fileInput = document.getElementById('imageUpload');
+                if (!fileInput.files.length) {
+                    alert('Please select an image first!');
+                    return;
+                }
+                
+                logDebug("Starting image processing...");
+                
+                // Show loading spinner
+                loadingSpinner.style.display = 'inline-block';
+                
+                // Create form data
+                const formData = new FormData(uploadForm);
+                
+                logDebug("Sending request to /api/images/process-upload");
+                
+                try {
+                    const startTime = performance.now();
+                    const response = await fetch('/api/images/process-upload', {
+                        method: 'POST',
+                        body: formData
+                    });
+                    
+                    logDebug(`Response status: ${response.status}`);
+                    
+                    if (!response.ok) {
+                        const errorData = await response.text();
+                        logDebug(`Error response: ${errorData}`);
+                        throw new Error(`Server error: ${response.status}`);
+                    }
+                    
+                    const data = await response.json();
+                    logDebug("Response received successfully");
+                    const endTime = performance.now();
+                    
+                    // Display processed image
+                    processedImage.src = data.processed_image;
+                    processedImage.style.display = 'block';
+                    noProcessedMsg.style.display = 'none';
+                    
+                    // Update stats
+                    document.getElementById('procDimensions').textContent = `${data.width} x ${data.height}`;
+                    document.getElementById('procTime').textContent = (endTime - startTime).toFixed(2);
+                    qualityStats.style.display = 'block';
+                    
+                } catch (error) {
+                    logDebug(`Error: ${error.message}`);
+                    alert('Error: ' + error.message);
+                } finally {
+                    // Hide loading spinner
+                    loadingSpinner.style.display = 'none';
+                }
+            });
+            
+            // MediaPipe optimization form submit handler
+            mediapipeForm.addEventListener('submit', async function(event) {
+                event.preventDefault();
+                clearDebug();
+                
+                const fileInput = document.getElementById('imageUpload');
+                if (!fileInput.files.length) {
+                    alert('Please select an image first!');
+                    return;
+                }
+                
+                logDebug("Starting MediaPipe optimization...");
+                
+                // Show loading spinner
+                loadingSpinner.style.display = 'inline-block';
+                
+                // Create form data - use the file from the original upload form
+                const formData = new FormData();
+                formData.append('file', fileInput.files[0]);
+                formData.append('high_resolution', document.getElementById('highResolution').checked);
+                
+                logDebug("Sending request to /api/images/process-mediapipe");
+                
+                try {
+                    const startTime = performance.now();
+                    const response = await fetch('/api/images/process-mediapipe', {
+                        method: 'POST',
+                        body: formData
+                    });
+                    
+                    logDebug(`Response status: ${response.status}`);
+                    
+                    if (!response.ok) {
+                        const errorData = await response.text();
+                        logDebug(`Error response: ${errorData}`);
+                        throw new Error(`Server error: ${response.status}`);
+                    }
+                    
+                    const data = await response.json();
+                    logDebug("Response received successfully");
+                    const endTime = performance.now();
+                    
+                    // Display processed image
+                    processedImage.src = data.processed_image;
+                    processedImage.style.display = 'block';
+                    noProcessedMsg.style.display = 'none';
+                    
+                    // Update stats
+                    document.getElementById('procDimensions').textContent = `${data.width} x ${data.height}`;
+                    document.getElementById('procTime').textContent = (endTime - startTime).toFixed(2);
+                    qualityStats.style.display = 'block';
+                    
+                } catch (error) {
+                    logDebug(`Error: ${error.message}`);
+                    alert('Error: ' + error.message);
+                } finally {
+                    // Hide loading spinner
+                    loadingSpinner.style.display = 'none';
+                }
+            });
+
+            // Add initial debug message
+            logDebug("Page loaded. Ready to process images.");
+        });
+    </script>
+</body>
+</html>

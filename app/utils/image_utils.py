@@ -21,10 +21,19 @@ class ImagePreProcessor:
         Returns:
             numpy array of the image
         """
-        content = await file.read()
-        img = np.asarray(bytearray(content), dtype="uint8")
-        img = cv2.imdecode(img, cv2.IMREAD_COLOR) # Convert to BGR format
-        return img
+        try:
+            # Reset file position to start in case it was read before
+            await file.seek(0)
+            content = await file.read()
+            img = np.asarray(bytearray(content), dtype="uint8")
+            img = cv2.imdecode(img, cv2.IMREAD_COLOR)
+            if img is None:
+                raise ValueError("Could not decode image")
+            return img
+        except Exception as e:
+            # Add better error handling with logging
+            print(f"Error loading image from upload: {str(e)}")
+            raise ValueError(f"Failed to load image: {str(e)}")
 
     def load_image_from_base64(self, base64_str: str) -> np.ndarray:
         """
@@ -122,15 +131,19 @@ class ImagePreProcessor:
         Returns:
             Preprocessed image
         """
-        # Load image based on source type
-        if isinstance(image_source, UploadFile):
+        # Debug input type
+        print(f"Image source type: {type(image_source)}")
+        
+        # Load image based on source type - improved type checking
+        if hasattr(image_source, "read") and callable(getattr(image_source, "read")):
+            # This is likely a file-like object such as UploadFile
             image = await self.load_image_from_upload(image_source)
         elif isinstance(image_source, str):
             image = self.load_image_from_base64(image_source)
         elif isinstance(image_source, np.ndarray):
             image = image_source
         else:
-            raise ValueError("Unsupported image source type")
+            raise ValueError(f"Unsupported image source type: {type(image_source)}")
             
         # Apply preprocessing steps
         if apply_resize:
@@ -182,27 +195,37 @@ class ImagePreProcessor:
         Returns:
             Enhanced image optimized for pose detection
         """
-        # Make sure image is in RGB format
+        # Convert to uint8 if needed
+        if image.dtype != np.uint8:
+            image = (image * 255).astype(np.uint8)
+            
+        # Convert to RGB if in BGR format
         if len(image.shape) == 3 and image.shape[2] == 3:
-            if image.dtype == np.float32 or image.dtype == np.float64:
-                image = (image * 255).astype(np.uint8)
             image = cv2.cvtColor(image, cv2.COLOR_BGR2RGB)
             
-        # Enhance edges to help with keypoint detection
+        # Enhance edges
         sharpening_kernel = np.array([[-1, -1, -1], 
-                                      [-1, 9, -1], 
-                                      [-1, -1, -1]])
+                                    [-1, 9, -1], 
+                                    [-1, -1, -1]])
         sharpened = cv2.filter2D(image, -1, sharpening_kernel)
         
-        # Ensure good lighting by applying adaptive equalization
+        # Convert to LAB color space
         lab = cv2.cvtColor(sharpened, cv2.COLOR_RGB2LAB)
         l, a, b = cv2.split(lab)
+        
+        # Ensure L channel is in uint8 format before applying CLAHE
+        if l.dtype != np.uint8:
+            l = (l * 255).astype(np.uint8)
+            
+        # Apply CLAHE to L channel
         clahe = cv2.createCLAHE(clipLimit=3.0, tileGridSize=(8, 8))
         l = clahe.apply(l)
-        lab = cv2.merge((l, a, b))
+        
+        # Merge channels back
+        lab = cv2.merge([l, a, b])
         enhanced = cv2.cvtColor(lab, cv2.COLOR_LAB2RGB)
         
-        # Optional: Apply slight Gaussian blur to reduce artifacts from sharpening (kernel size 3)
+        # Apply slight Gaussian blur
         enhanced = cv2.GaussianBlur(enhanced, (3, 3), 0)
         
         return enhanced
@@ -220,27 +243,27 @@ class ImagePreProcessor:
         Returns:
             Preprocessed image optimized for MediaPipe
         """
-        # Load image based on source type
-        if isinstance(image_source, UploadFile):
+        # Debug input type
+        print(f"MediaPipe preprocessing - Image source type: {type(image_source)}")
+        
+        # Load image based on source type - using same check as preprocess_image
+        if hasattr(image_source, "read") and callable(getattr(image_source, "read")):
+            # This is likely a file-like object such as UploadFile
             image = await self.load_image_from_upload(image_source)
         elif isinstance(image_source, str):
             image = self.load_image_from_base64(image_source)
         elif isinstance(image_source, np.ndarray):
             image = image_source
         else:
-            raise ValueError("Unsupported image source type")
+            raise ValueError(f"Unsupported image source type: {type(image_source)}")
         
-        # Resize to appropriate resolution
+        # Rest of the processing remains the same
         if high_resolution:
-            # Higher resolution for more accurate keypoints
             image = cv2.resize(image, (1280, 720), interpolation=cv2.INTER_AREA)
         else:
             image = self.resize_image(image)
         
-        # Apply median blur (better preserves edges than Gaussian for pose detection)
         image = self.filter_noise(image, filter_type='median', kernel_size=3)
-        
-        # Apply enhanced processing specifically for pose detection
         image = self.enhance_for_pose_detection(image)
         
         return image

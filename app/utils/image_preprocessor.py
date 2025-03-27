@@ -1,270 +1,248 @@
+"""
+Image preprocessing utilities.
+
+This module provides a class for image preprocessing operations including
+resizing, color normalization, and noise filtering.
+"""
+import base64
 import cv2
 import numpy as np
-import base64
-from typing import List, Tuple, Union, Optional
-from PIL import Image
-from io import BytesIO
+from typing import Tuple, Optional, Union, BinaryIO
 from fastapi import UploadFile
+import io
+import logging
 
-class ImagePreProcessor: 
+logger = logging.getLogger(__name__)
+
+class ImagePreProcessor:
+    """Class for preprocessing images to optimize for analysis."""
+    
     def __init__(self, width: int = 640, height: int = 480):
+        """
+        Initialize the image preprocessor.
+        
+        Args:
+            width: Default target width for resizing
+            height: Default target height for resizing
+        """
         self.width = width
         self.height = height
-        
-    async def load_image_from_upload(self, file: UploadFile) -> np.ndarray:
+    
+    async def preprocess_image(
+        self,
+        image_input: Union[str, bytes, UploadFile, np.ndarray],
+        apply_resize: bool = True,
+        apply_normalize: bool = True,
+        apply_filter: bool = True,
+        filter_type: str = "gaussian"
+    ) -> np.ndarray:
         """
-        Load image from FastAPI UploadFile
-        
-        Args:
-            file: UploadFile from FastAPI
-            
-        Returns:
-            numpy array of the image
-        """
-        try:
-            # Reset file position to start in case it was read before
-            await file.seek(0)
-            content = await file.read()
-            img = np.asarray(bytearray(content), dtype="uint8")
-            img = cv2.imdecode(img, cv2.IMREAD_COLOR) 
-            if img is None:
-                raise ValueError("Could not decode image")
-            return img
-        except Exception as e:
-            # Add better error handling with logging
-            print(f"Error loading image from upload: {str(e)}")
-            raise ValueError(f"Failed to load image: {str(e)}")
-
-    def load_image_from_base64(self, base64_str: str) -> np.ndarray:
-        """
-        Load image from base64 string
+        Apply preprocessing pipeline to an image.
         
         Args:
-            base64_str: Base64 encoded image string
+            image_input: Input image as base64 string, bytes, UploadFile, or numpy array
+            apply_resize: Whether to apply resizing
+            apply_normalize: Whether to apply color normalization
+            apply_filter: Whether to apply noise filtering
+            filter_type: Type of noise filter to apply ("gaussian" or "median")
             
         Returns:
-            numpy array of the image
+            Preprocessed image as numpy array
         """
-        # Handle potential data URI prefix
-        if ',' in base64_str:
-            base64_str = base64_str.split(',')[1]
+        # Load the image
+        image = await self._load_image(image_input)
+        
+        # Apply preprocessing steps
+        if apply_resize:
+            image = self.resize(image)
+        
+        if apply_normalize:
+            image = self.normalize_colors(image)
             
-        img_data = base64.b64decode(base64_str)
-        nparr = np.frombuffer(img_data, np.uint8)
+        if apply_filter:
+            image = self.reduce_noise(image, method=filter_type)
+            
+        return image
+    
+    async def preprocess_for_mediapipe(
+        self,
+        image_input: Union[str, bytes, UploadFile, np.ndarray],
+        high_resolution: bool = False
+    ) -> np.ndarray:
+        """
+        Apply preprocessing optimized for MediaPipe.
+        
+        Args:
+            image_input: Input image as base64 string, bytes, UploadFile, or numpy array
+            high_resolution: Whether to use high resolution (1280x720)
+            
+        Returns:
+            Preprocessed image as numpy array
+        """
+        # Load the image
+        image = await self._load_image(image_input)
+        
+        # MediaPipe works better with RGB
+        if len(image.shape) == 3 and image.shape[2] == 3:
+            # Check if already RGB (this is a heuristic)
+            if np.mean(image[:, :, 0]) < np.mean(image[:, :, 2]):
+                image = cv2.cvtColor(image, cv2.COLOR_BGR2RGB)
+        
+        # Resize based on resolution setting
+        if high_resolution:
+            image = self.resize(image, target_size=(1280, 720))
+        else:
+            image = self.resize(image)
+            
+        # Apply mild noise reduction
+        image = self.reduce_noise(image, method="gaussian", kernel_size=3)
+        
+        return image
+    
+    async def _load_image(
+        self, 
+        image_input: Union[str, bytes, UploadFile, np.ndarray]
+    ) -> np.ndarray:
+        """
+        Load an image from various input types.
+        
+        Args:
+            image_input: Input image as base64 string, bytes, UploadFile, or numpy array
+            
+        Returns:
+            Image as numpy array
+            
+        Raises:
+            ValueError: If image cannot be loaded
+        """
+        if isinstance(image_input, np.ndarray):
+            return image_input
+            
+        elif isinstance(image_input, UploadFile):
+            contents = await image_input.read()
+            nparr = np.frombuffer(contents, np.uint8)
+            
+        elif isinstance(image_input, bytes):
+            nparr = np.frombuffer(image_input, np.uint8)
+            
+        elif isinstance(image_input, str):
+            # Assuming base64 string
+            if image_input.startswith('data:image'):
+                # Remove header if present
+                image_input = image_input.split(',')[1]
+                
+            try:
+                imgdata = base64.b64decode(image_input)
+                nparr = np.frombuffer(imgdata, np.uint8)
+            except Exception as e:
+                logger.error(f"Failed to decode base64 string: {e}")
+                raise ValueError("Invalid base64 image data")
+        else:
+            raise ValueError("Unsupported image input type")
+            
+        # Decode the image
         img = cv2.imdecode(nparr, cv2.IMREAD_COLOR)
+        if img is None:
+            raise ValueError("Could not decode image")
+            
         return img
     
-    def resize_image(self, image: np.ndarray) -> np.ndarray:
+    def resize(
+        self, 
+        image: np.ndarray, 
+        target_size: Optional[Tuple[int, int]] = None
+    ) -> np.ndarray:
         """
-        Resize image to standard dimensions
+        Resize an image to the target size.
         
         Args:
             image: Input image as numpy array
+            target_size: Target dimensions as (width, height)
             
         Returns:
             Resized image
         """
-        return cv2.resize(image, (self.width, self.height), interpolation=cv2.INTER_AREA) 
+        if target_size is None:
+            target_size = (self.width, self.height)
+            
+        # Skip if already at target size
+        if image.shape[1] == target_size[0] and image.shape[0] == target_size[1]:
+            return image
+        
+        return cv2.resize(image, target_size, interpolation=cv2.INTER_AREA)
     
     def normalize_colors(self, image: np.ndarray) -> np.ndarray:
         """
-        Normalize colors, convert to RGB if needed, and adjust brightness/contrast
+        Normalize image colors, adjusting brightness and contrast.
         
         Args:
-            image: Input image as numpy array
+            image: Input image
             
         Returns:
-            Color normalized image
+            Normalized image
         """
-        # Convert BGR to RGB if needed
-        if image.shape[2] == 3:
-            image = cv2.cvtColor(image, cv2.COLOR_BGR2RGB)
-            
-        # Apply histogram equalization for contrast enhancement
-        lab = cv2.cvtColor(image, cv2.COLOR_RGB2LAB)
+        # Convert to LAB color space
+        lab = cv2.cvtColor(image, cv2.COLOR_BGR2LAB)
+        
+        # Split channels
         l, a, b = cv2.split(lab)
-        clahe = cv2.createCLAHE(clipLimit=2.0, tileGridSize=(8,8))
-        l = clahe.apply(l)
-        lab = cv2.merge((l, a, b))
-        enhanced = cv2.cvtColor(lab, cv2.COLOR_LAB2RGB)
         
-        # Normalize pixel values
-        enhanced = enhanced.astype("float32") / 255.0
+        # Apply CLAHE (Contrast Limited Adaptive Histogram Equalization)
+        clahe = cv2.createCLAHE(clipLimit=2.0, tileGridSize=(8, 8))
+        cl = clahe.apply(l)
         
-        return enhanced
+        # Merge channels
+        merged = cv2.merge([cl, a, b])
+        
+        # Convert back to BGR
+        normalized = cv2.cvtColor(merged, cv2.COLOR_LAB2BGR)
+        
+        return normalized
     
-    def filter_noise(self, image: np.ndarray, filter_type: str = 'gaussian', kernel_size: int = 5) -> np.ndarray:
+    def reduce_noise(
+        self, 
+        image: np.ndarray, 
+        method: str = "gaussian",
+        kernel_size: int = 5
+    ) -> np.ndarray:
         """
-        Apply noise filtering
+        Apply noise reduction filter to an image.
         
         Args:
-            image: Input image as numpy array
-            filter_type: Type of filter ('gaussian' or 'median')
-            kernel_size: Size of the kernel
+            image: Input image
+            method: Filtering method ('gaussian' or 'median')
+            kernel_size: Size of the kernel for filtering
             
         Returns:
-            Filtered image
+            Filtered image with reduced noise
         """
-        if filter_type.lower() == 'gaussian':
+        # Ensure kernel size is odd
+        if kernel_size % 2 == 0:
+            kernel_size += 1
+            
+        if method == "gaussian":
             return cv2.GaussianBlur(image, (kernel_size, kernel_size), 0)
-        elif filter_type.lower() == 'median':
+        elif method == "median":
             return cv2.medianBlur(image, kernel_size)
         else:
-            return image
+            logger.warning(f"Unknown noise reduction method: {method}, using gaussian")
+            return cv2.GaussianBlur(image, (kernel_size, kernel_size), 0)
     
-    async def preprocess_image(self, 
-                              image_source: Union[UploadFile, str, np.ndarray],
-                              apply_resize: bool = True,
-                              apply_normalize: bool = True, 
-                              apply_filter: bool = True,
-                              filter_type: str = 'gaussian') -> np.ndarray:
+    def to_base64(self, image: np.ndarray, format: str = ".jpg") -> str:
         """
-        Complete preprocessing pipeline for images
-        
-        Args:
-            image_source: UploadFile, base64 string or numpy array
-            apply_resize: Whether to apply resizing
-            apply_normalize: Whether to apply color normalization
-            apply_filter: Whether to apply noise filtering
-            filter_type: Type of noise filter to apply
-            
-        Returns:
-            Preprocessed image
-        """
-        # Debug input type
-        print(f"Image source type: {type(image_source)}")
-        
-        # Load image based on source type - improved type checking
-        if hasattr(image_source, "read") and callable(getattr(image_source, "read")):
-            # This is likely a file-like object such as UploadFile
-            image = await self.load_image_from_upload(image_source)
-        elif isinstance(image_source, str):
-            image = self.load_image_from_base64(image_source)
-        elif isinstance(image_source, np.ndarray):
-            image = image_source
-        else:
-            raise ValueError(f"Unsupported image source type: {type(image_source)}")
-            
-        # Apply preprocessing steps
-        if apply_resize:
-            image = self.resize_image(image)
-            
-        if apply_filter:
-            image = self.filter_noise(image, filter_type)
-            
-        if apply_normalize:
-            image = self.normalize_colors(image)
-            
-        return image
-    
-    def to_base64(self, image: np.ndarray) -> str:
-        """
-        Convert processed image to base64 for easy transmission
-        
-        Args:
-            image: Processed image as numpy array
-            
-        Returns:
-            Base64 encoded string
-        """
-        # If image is normalized to float values, convert back to uint8
-        if image.dtype == np.float32 or image.dtype == np.float64:
-            image = (image * 255).astype(np.uint8)
-            
-        # Convert to RGB if not already
-        if len(image.shape) == 3 and image.shape[2] == 3:
-            if image.shape[2] == 3:
-                image = cv2.cvtColor(image, cv2.COLOR_BGR2RGB)
-        
-        # Encode as JPEG
-        success, buffer = cv2.imencode('.jpg', image)
-        if not success:
-            raise ValueError("Failed to encode image")
-            
-        # Convert to base64
-        base64_str = base64.b64encode(buffer).decode('utf-8')
-        return f"data:image/jpeg;base64,{base64_str}"
-
-    def enhance_for_pose_detection(self, image: np.ndarray) -> np.ndarray:
-        """
-        Enhance image specifically for MediaPipe pose detection
+        Convert an image to base64 string.
         
         Args:
             image: Input image as numpy array
+            format: Image format ('.jpg', '.png', etc.)
             
         Returns:
-            Enhanced image optimized for pose detection
+            Base64 encoded image string
         """
-        # Convert to uint8 if needed
-        if image.dtype != np.uint8:
-            image = (image * 255).astype(np.uint8)
+        success, buffer = cv2.imencode(format, image)
+        if not success:
+            logger.error("Failed to encode image")
+            return ""
             
-        # Convert to RGB if in BGR format
-        if len(image.shape) == 3 and image.shape[2] == 3:
-            image = cv2.cvtColor(image, cv2.COLOR_BGR2RGB)
-            
-        # Enhance edges
-        sharpening_kernel = np.array([[-1, -1, -1], 
-                                    [-1, 9, -1], 
-                                    [-1, -1, -1]])
-        sharpened = cv2.filter2D(image, -1, sharpening_kernel)
-        
-        # Convert to LAB color space
-        lab = cv2.cvtColor(sharpened, cv2.COLOR_RGB2LAB)
-        l, a, b = cv2.split(lab)
-        
-        # Ensure L channel is in uint8 format before applying CLAHE
-        if l.dtype != np.uint8:
-            l = (l * 255).astype(np.uint8)
-            
-        # Apply CLAHE to L channel
-        clahe = cv2.createCLAHE(clipLimit=3.0, tileGridSize=(8, 8))
-        l = clahe.apply(l)
-        
-        # Merge channels back
-        lab = cv2.merge([l, a, b])
-        enhanced = cv2.cvtColor(lab, cv2.COLOR_LAB2RGB)
-        
-        # Apply slight Gaussian blur
-        enhanced = cv2.GaussianBlur(enhanced, (3, 3), 0)
-        
-        return enhanced
-
-    async def preprocess_for_mediapipe(self, 
-                                      image_source: Union[UploadFile, str, np.ndarray],
-                                      high_resolution: bool = False) -> np.ndarray:
-        """
-        Specialized preprocessing pipeline optimized for MediaPipe
-        
-        Args:
-            image_source: UploadFile, base64 string or numpy array
-            high_resolution: Whether to use higher resolution (720p) for better keypoint detection
-            
-        Returns:
-            Preprocessed image optimized for MediaPipe
-        """
-        # Debug input type
-        print(f"MediaPipe preprocessing - Image source type: {type(image_source)}")
-        
-        # Load image based on source type - using same check as preprocess_image
-        if hasattr(image_source, "read") and callable(getattr(image_source, "read")):
-            # This is likely a file-like object such as UploadFile
-            image = await self.load_image_from_upload(image_source)
-        elif isinstance(image_source, str):
-            image = self.load_image_from_base64(image_source)
-        elif isinstance(image_source, np.ndarray):
-            image = image_source
-        else:
-            raise ValueError(f"Unsupported image source type: {type(image_source)}")
-        
-        # Rest of the processing remains the same
-        if high_resolution:
-            image = cv2.resize(image, (1280, 720), interpolation=cv2.INTER_AREA)
-        else:
-            image = self.resize_image(image)
-        
-        image = self.filter_noise(image, filter_type='median', kernel_size=3)
-        image = self.enhance_for_pose_detection(image)
-        
-        return image
-
+        encoded = base64.b64encode(buffer).decode('utf-8')
+        return f"data:image/{format[1:]};base64,{encoded}"

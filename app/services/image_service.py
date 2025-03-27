@@ -2,6 +2,10 @@ import time
 import numpy as np
 from fastapi import UploadFile, HTTPException
 from typing import Dict, Any, Tuple, Optional, Union
+import cv2
+import logging
+
+logger = logging.getLogger(__name__)
 
 from app.utils.image_preprocessor import ImagePreProcessor
 
@@ -196,3 +200,70 @@ class ImageService:
             "height": height,
             "processing_time_ms": round(processing_time, 2)
         }
+    
+    def decode_image(self, image_data: Union[bytes, np.ndarray]) -> Optional[np.ndarray]:
+        """
+        Decode image data to numpy array.
+        
+        Args:
+            image_data: Image data as bytes or numpy array
+            
+        Returns:
+            Decoded image as numpy array, or None if decoding fails
+        """
+        try:
+            if isinstance(image_data, np.ndarray):
+                return image_data
+                
+            # Convert bytes to numpy array
+            nparr = np.frombuffer(image_data, np.uint8)
+            
+            # Decode image
+            image = cv2.imdecode(nparr, cv2.IMREAD_COLOR)
+            if image is None:
+                logger.error("Failed to decode image data")
+                return None
+                
+            return image
+        except Exception as e:
+            logger.error(f"Error decoding image: {e}")
+            return None
+    
+    async def read_image_file(self, file: UploadFile) -> Optional[np.ndarray]:
+        """
+        Read image from an uploaded file.
+        
+        Args:
+            file: UploadFile instance
+            
+        Returns:
+            Image as numpy array, or None if reading fails
+        """
+        try:
+            contents = await file.read()
+            return self.decode_image(contents)
+        except Exception as e:
+            logger.error(f"Error reading image file: {e}")
+            return None
+            
+    def encode_image_to_bytes(self, image: np.ndarray, format: str = '.jpg') -> Optional[bytes]:
+        """
+        Encode image to bytes.
+        
+        Args:
+            image: Image as numpy array
+            format: Image format ('.jpg', '.png', etc.)
+            
+        Returns:
+            Encoded image as bytes, or None if encoding fails
+        """
+        try:
+            is_success, buffer = cv2.imencode(format, image)
+            if not is_success:
+                logger.error("Failed to encode image")
+                return None
+                
+            return buffer.tobytes()
+        except Exception as e:
+            logger.error(f"Error encoding image: {e}")
+            return None

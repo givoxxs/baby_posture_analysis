@@ -1,192 +1,248 @@
-import time
-import numpy as np
-import cv2
-from fastapi import UploadFile, HTTPException
-from typing import Dict, Any, Tuple, Optional, List, Union
+"""
+Pose detection and analysis service.
 
-from app.utils.mediapipe_utils import PoseDetector
-from app.utils.image_preprocessor import ImagePreProcessor
+This service integrates all components of the baby posture analysis system:
+- Image processing
+- Pose detection
+- Feature extraction
+- Posture classification
+- Risk analysis
+- Alert generation
+"""
+
+import cv2
+import numpy as np
+import os
+import uuid
+from datetime import datetime
+from typing import Dict, Any, Optional, Tuple
+from fastapi import UploadFile
+import logging
+import asyncio
+
+from app.config import settings
 from app.services.image_service import ImageService
+from app.utils.mediapipe_utils import PoseDetector
+from app.utils.image_processing import preprocess_image
+from app.utils.posture_features import PostureFeatureExtractor
+from app.utils.posture_classifier import PostureClassifier
+from app.utils.risk_analyzer import RiskAnalyzer
+from app.utils.alert_system import AlertSystem
+from app.models.analysis import PoseAnalysisRecord
+from app.repositories.factory import get_analysis_repository
+
+logger = logging.getLogger(__name__)
 
 class PoseService:
-    """Service for pose detection and analysis"""
+    """
+    Service for detecting and analyzing baby postures in images.
+    
+    This service integrates the complete pipeline from image preprocessing
+    through pose detection, feature extraction, classification, risk analysis,
+    and alert generation.
+    """
     
     def __init__(
-        self, 
-        image_service: Optional[ImageService] = None,
-        pose_detector: Optional[PoseDetector] = None
+        self,
+        image_service: ImageService,
+        pose_detector: PoseDetector
     ):
         """
-        Initialize the pose service
+        Initialize the pose service with required dependencies.
         
         Args:
-            image_service: Optional ImageService instance. If None, a default one is created.
-            pose_detector: Optional PoseDetector instance. If None, a default one is created.
+            image_service: Service for image operations
+            pose_detector: MediaPipe pose detector wrapper
         """
-        self.image_service = image_service or ImageService()
-        self.pose_detector = pose_detector or PoseDetector(
-            static_image_mode=True,
-            model_complexity=2,
-            min_detection_confidence=0.5,
-            min_tracking_confidence=0.5,
-            confidence_threshold=0.5
-        )
-    
-    async def detect_pose_from_file(
-        self, 
+        self.image_service = image_service
+        self.pose_detector = pose_detector
+        self.feature_extractor = PostureFeatureExtractor(pose_detector)
+        self.classifier = PostureClassifier()
+        self.risk_analyzer = RiskAnalyzer()
+        self.alert_system = AlertSystem()
+        
+    async def process_image(
+        self,
         file: UploadFile,
         high_resolution: bool = False,
-        include_annotated_image: bool = True
+        include_annotated_image: bool = True,
+        include_analysis: bool = True
     ) -> Dict[str, Any]:
         """
-        Process an image file and detect pose
+        Process an uploaded image to detect and analyze baby posture.
         
         Args:
-            file: UploadFile from FastAPI
-            high_resolution: Whether to use higher resolution for detection
-            include_annotated_image: Whether to include the annotated image in the response
+            file: Uploaded image file
+            high_resolution: Whether to use high resolution processing
+            include_annotated_image: Whether to include annotated image in response
+            include_analysis: Whether to include detailed posture analysis
             
         Returns:
-            Dictionary with keypoints data and optionally the annotated image
+            Analysis results including landmarks, posture type, risk level, etc.
         """
-        start_time = time.time()
+        # Read and validate the image
+        image_data = await file.read()
+        image_array = self.image_service.decode_image(image_data)
+        if image_array is None:
+            raise ValueError("Invalid image data")
         
-        # First, preprocess the image using the image service
-        await self.image_service.validate_image_file(file)
-        
-        # Use specialized preprocessing for MediaPipe
-        processed_image = await self.image_service.processor.preprocess_for_mediapipe(
-            file,
-            high_resolution=high_resolution
+        # Process the image
+        return await self.analyze_image(
+            image_array,
+            high_resolution=high_resolution,
+            include_annotated_image=include_annotated_image,
+            include_analysis=include_analysis,
+            filename=file.filename
         )
-        
-        # Detect pose in the processed image
-        keypoints_data, annotated_image = self.pose_detector.detect_pose(processed_image)
-        
-        if not keypoints_data:
-            raise HTTPException(
-                status_code=400, 
-                detail="No pose detected in the image. Please try with a different image."
-            )
-        
-        # Calculate joint angles
-        angles = self.pose_detector.get_pose_angles(keypoints_data)
-        keypoints_data['joint_angles'] = angles
-        
-        # Calculate total processing time
-        total_processing_time = (time.time() - start_time) * 1000
-        keypoints_data['total_processing_time_ms'] = round(total_processing_time, 2)
-        
-        # Prepare response
-        response = {
-            "message": "Pose detection successful",
-            "keypoints_data": keypoints_data,
-        }
-        
-        # Include the annotated image if requested
-        if include_annotated_image and annotated_image is not None:
-            base64_annotated = self.image_service.processor.to_base64(annotated_image)
-            response["annotated_image"] = base64_annotated
-        
-        return response
     
-    async def detect_pose_from_processed_image(
+    async def analyze_image(
         self,
         image: np.ndarray,
-        include_annotated_image: bool = True
+        high_resolution: bool = False,
+        include_annotated_image: bool = True,
+        include_analysis: bool = True,
+        filename: Optional[str] = None
     ) -> Dict[str, Any]:
         """
-        Detect pose from an already processed image
+        Analyze an image to detect and analyze baby posture.
         
         Args:
-            image: Preprocessed image as numpy array
-            include_annotated_image: Whether to include the annotated image in the response
+            image: Image as numpy array
+            high_resolution: Whether to use high resolution processing
+            include_annotated_image: Whether to include annotated image in response
+            include_analysis: Whether to include detailed posture analysis
+            filename: Original filename if available
             
         Returns:
-            Dictionary with keypoints data and optionally the annotated image
+            Analysis results including landmarks, posture type, risk level, etc.
         """
-        start_time = time.time()
+        # Preprocess the image
+        target_size = (640, 480) if high_resolution else (256, 256)
+        preprocessed = preprocess_image(image, target_size=target_size)
         
-        # Detect pose in the processed image
-        keypoints_data, annotated_image = self.pose_detector.detect_pose(image)
+        # Detect pose landmarks
+        landmarks, annotated_image = self.pose_detector.detect(preprocessed)
         
-        if not keypoints_data:
-            raise HTTPException(
-                status_code=400, 
-                detail="No pose detected in the image. Please try with a different image."
+        if not landmarks:
+            logger.warning("No pose detected in image")
+            return {"landmarks": {}, "pose_type": "unknown"}
+        
+        # Extract features from landmarks
+        features = self.feature_extractor.extract_features(landmarks)
+        
+        # Classify posture based on features
+        pose_type, confidence, classification_details = self.classifier.classify(features)
+        
+        # Initialize result dictionary with landmarks and pose type
+        result = {
+            "landmarks": landmarks,
+            "pose_type": pose_type,
+            "confidence": confidence
+        }
+        
+        # Perform risk analysis if requested
+        if include_analysis:
+            risk_level, risk_score, analysis = self.risk_analyzer.analyze_risk(
+                pose_type, confidence, features
             )
+            
+            result.update({
+                "risk_level": risk_level,
+                "risk_score": risk_score,
+                "analysis": analysis
+            })
+            
+            # Process for alerts if risk score is high enough
+            alert_info = await self.alert_system.process_analysis(
+                pose_type=pose_type,
+                risk_level=risk_level,
+                risk_score=risk_score,
+                analysis=analysis,
+                image_path=None  # Will be updated after saving image
+            )
+            
+            if alert_info:
+                result["alert"] = alert_info
         
-        # Calculate joint angles
-        angles = self.pose_detector.get_pose_angles(keypoints_data)
-        keypoints_data['joint_angles'] = angles
-        
-        # Calculate total processing time
-        total_processing_time = (time.time() - start_time) * 1000
-        keypoints_data['total_processing_time_ms'] = round(total_processing_time, 2)
-        
-        # Prepare response
-        response = {
-            "message": "Pose detection successful",
-            "keypoints_data": keypoints_data,
-        }
-        
-        # Include the annotated image if requested
+        # Save annotated image if requested
+        image_url = None
         if include_annotated_image and annotated_image is not None:
-            base64_annotated = self.image_service.processor.to_base64(annotated_image)
-            response["annotated_image"] = base64_annotated
+            # Generate unique filename
+            unique_id = str(uuid.uuid4())[:8]
+            timestamp = datetime.now().strftime("%Y%m%d%H%M%S")
+            ext = "jpg"
+            if filename:
+                name_parts = os.path.splitext(filename)
+                if len(name_parts) > 1:
+                    ext = name_parts[1].lstrip(".")
+            
+            save_filename = f"pose_{timestamp}_{unique_id}.{ext}"
+            save_path = os.path.join(str(settings.PROCESSED_DIR), save_filename)
+            
+            # Save the image
+            cv2.imwrite(save_path, cv2.cvtColor(annotated_image, cv2.COLOR_RGB2BGR))
+            
+            # Generate URL path for the image
+            image_url = f"/static/processed_images/{save_filename}"
+            result["image_url"] = image_url
+            
+            # Update alert image path if alert was generated
+            if "alert" in result:
+                result["alert"]["image_path"] = image_url
+                await self.alert_system.save_alert(result["alert"])
         
-        return response
+        # Store the analysis record asynchronously
+        if include_analysis:
+            asyncio.create_task(self._store_analysis_record(
+                pose_type=pose_type,
+                risk_level=result.get("risk_level"),
+                risk_score=result.get("risk_score"),
+                analysis=result.get("analysis"),
+                landmarks=landmarks,
+                original_filename=filename,
+                annotated_image_path=image_url
+            ))
+            
+        return result
     
-    def analyze_posture(self, keypoints_data: Dict[str, Any]) -> Dict[str, Any]:
+    async def _store_analysis_record(
+        self,
+        pose_type: str,
+        risk_level: Optional[str] = None,
+        risk_score: Optional[float] = None,
+        analysis: Optional[Dict[str, Any]] = None,
+        landmarks: Optional[Dict[str, Any]] = None,
+        original_filename: Optional[str] = None,
+        annotated_image_path: Optional[str] = None
+    ):
         """
-        Analyze the posture based on keypoints
+        Store analysis record in the repository.
         
         Args:
-            keypoints_data: Keypoints data from detect_pose
-            
-        Returns:
-            Dictionary with posture analysis results
+            pose_type: Detected pose type
+            risk_level: Risk level
+            risk_score: Risk score
+            analysis: Detailed analysis
+            landmarks: Detected landmarks
+            original_filename: Original image filename
+            annotated_image_path: Path to saved annotated image
         """
-        # This is a placeholder for future implementation of posture analysis
-        # Will be expanded in future with more sophisticated analysis
-        
-        angles = keypoints_data.get('joint_angles', {})
-        
-        # Basic analysis based on joint angles
-        analysis = {
-            "posture_type": "unknown",
-            "symmetry_score": 0,
-            "notes": []
-        }
-        
-        # Check for limb symmetry (if both sides are detected)
-        if 'left_knee' in angles and 'right_knee' in angles:
-            knee_diff = abs(angles['left_knee'] - angles['right_knee'])
-            if knee_diff > 15:
-                analysis["notes"].append(f"Asymmetric knee angles (difference of {knee_diff:.1f} degrees)")
-        
-        if 'left_elbow' in angles and 'right_elbow' in angles:
-            elbow_diff = abs(angles['left_elbow'] - angles['right_elbow'])
-            if elbow_diff > 15:
-                analysis["notes"].append(f"Asymmetric elbow angles (difference of {elbow_diff:.1f} degrees)")
-        
-        # Calculate basic symmetry score
-        symmetry_deductions = 0
-        if 'left_knee' in angles and 'right_knee' in angles:
-            symmetry_deductions += abs(angles['left_knee'] - angles['right_knee']) / 180.0
-        
-        if 'left_elbow' in angles and 'right_elbow' in angles:
-            symmetry_deductions += abs(angles['left_elbow'] - angles['right_elbow']) / 180.0
-        
-        if 'left_hip' in angles and 'right_hip' in angles:
-            symmetry_deductions += abs(angles['left_hip'] - angles['right_hip']) / 180.0
-        
-        # Scale to 0-100
-        if symmetry_deductions > 0:
-            analysis["symmetry_score"] = max(0, 100 - (symmetry_deductions * 50))
-        else:
-            analysis["symmetry_score"] = 100
-        
-        analysis["symmetry_score"] = round(analysis["symmetry_score"], 1)
-        
-        return analysis
+        try:
+            record = PoseAnalysisRecord(
+                timestamp=datetime.now(),
+                pose_type=pose_type,
+                risk_level=risk_level,
+                risk_score=risk_score,
+                analysis=analysis,
+                image_path=original_filename,
+                annotated_image_path=annotated_image_path,
+                landmarks=landmarks
+            )
+            
+            # Convert to dict for storage
+            repository = get_analysis_repository()
+            await repository.save(record.dict())
+            
+            logger.debug(f"Stored analysis record for {pose_type} pose")
+        except Exception as e:
+            logger.error(f"Failed to store analysis record: {str(e)}")

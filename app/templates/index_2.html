@@ -100,6 +100,59 @@
         .tab-content {
             padding: 15px 0;
         }
+        /* Styles for posture analysis results */
+        .posture-result {
+            margin-top: 20px;
+            padding: 15px;
+            border-radius: 8px;
+            background-color: #f0f8ff;
+            box-shadow: 0 2px 5px rgba(0,0,0,0.1);
+        }
+        
+        .posture-badge {
+            font-size: 14px;
+            padding: 8px 12px;
+            margin-right: 8px;
+            margin-bottom: 8px;
+            border-radius: 20px;
+            display: inline-block;
+        }
+        
+        .posture-details {
+            margin-top: 15px;
+            padding: 10px;
+            background-color: #f9f9f9;
+            border-radius: 5px;
+            border-left: 4px solid #6c757d;
+        }
+        
+        .confidence-high {
+            color: #198754;
+            font-weight: bold;
+        }
+        
+        .confidence-medium {
+            color: #fd7e14;
+            font-weight: bold;
+        }
+        
+        .confidence-low {
+            color: #dc3545;
+            font-weight: bold;
+        }
+        
+        .body-segment {
+            padding: 5px 10px;
+            margin: 3px;
+            border-radius: 4px;
+            display: inline-block;
+            font-size: 90%;
+        }
+        
+        .pose-chart-container {
+            height: 250px;
+            margin-top: 15px;
+        }
     </style>
 </head>
 <body>
@@ -352,6 +405,54 @@
                                         <div id="analysisContainer">
                                             <p>No analysis data available yet.</p>
                                         </div>
+                                        
+                                        <!-- New posture analysis detailed results section -->
+                                        <div id="postureResultsContainer" class="posture-result mt-4" style="display: none;">
+                                            <h5 class="mb-3">Posture Analysis Details</h5>
+                                            
+                                            <div class="d-flex flex-wrap mb-3">
+                                                <div class="posture-badge bg-primary text-white">
+                                                    Posture Type: <span id="postureType">Unknown</span>
+                                                </div>
+                                                <div class="posture-badge bg-info text-white">
+                                                    Confidence: <span id="postureConfidence">0%</span>
+                                                </div>
+                                            </div>
+                                            
+                                            <div class="posture-details">
+                                                <h6>Body Alignment</h6>
+                                                <div id="bodyAlignmentInfo">
+                                                    <p>No body alignment data available.</p>
+                                                </div>
+                                            </div>
+                                            
+                                            <div class="posture-details mt-3">
+                                                <h6>Posture Issues</h6>
+                                                <div id="postureIssues">
+                                                    <p>No posture issues detected.</p>
+                                                </div>
+                                            </div>
+                                            
+                                            <div class="posture-details mt-3">
+                                                <h6>Recommendations</h6>
+                                                <div id="postureRecommendations">
+                                                    <p>No recommendations available.</p>
+                                                </div>
+                                            </div>
+                                            
+                                            <div class="row mt-4">
+                                                <div class="col-md-6">
+                                                    <div class="pose-chart-container">
+                                                        <canvas id="postureConfidenceChart"></canvas>
+                                                    </div>
+                                                </div>
+                                                <div class="col-md-6">
+                                                    <div class="pose-chart-container">
+                                                        <canvas id="bodySegmentsChart"></canvas>
+                                                    </div>
+                                                </div>
+                                            </div>
+                                        </div>
                                     </div>
                                 </div>
                             </div>
@@ -363,6 +464,7 @@
     </div>
 
     <script src="https://cdn.jsdelivr.net/npm/bootstrap@5.3.0-alpha1/dist/js/bootstrap.bundle.min.js"></script>
+    <script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
     <script>
         document.addEventListener('DOMContentLoaded', function() {
             // Get form elements
@@ -752,8 +854,159 @@
                     
                     analysisHtml += '</div></div>';
                     analysisContainer.innerHTML = analysisHtml;
+                    
+                    // Update the detailed posture results section
+                    displayDetailedPostureResults(data);
                 } else {
                     analysisContainer.innerHTML = '<p>No analysis data available.</p>';
+                    document.getElementById('postureResultsContainer').style.display = 'none';
+                }
+            }
+            
+            // New function to display detailed posture analysis
+            function displayDetailedPostureResults(data) {
+                if (!data.posture_analysis || !data.posture_analysis.posture_type) {
+                    document.getElementById('postureResultsContainer').style.display = 'none';
+                    return;
+                }
+                
+                const postureData = data.posture_analysis;
+                const container = document.getElementById('postureResultsContainer');
+                container.style.display = 'block';
+                
+                // Update basic posture information
+                document.getElementById('postureType').textContent = postureData.posture_type || 'Unknown';
+                
+                // Display confidence with appropriate styling
+                const confidence = postureData.confidence || 0;
+                let confidenceClass = 'confidence-low';
+                if (confidence >= 80) confidenceClass = 'confidence-high';
+                else if (confidence >= 50) confidenceClass = 'confidence-medium';
+                
+                document.getElementById('postureConfidence').textContent = `${confidence}%`;
+                document.getElementById('postureConfidence').className = confidenceClass;
+                
+                // Body alignment information
+                if (postureData.body_alignment) {
+                    let alignmentHtml = '<div class="row">';
+                    for (const [segment, status] of Object.entries(postureData.body_alignment)) {
+                        const statusClass = status === 'good' ? 'bg-success' : 
+                                          (status === 'fair' ? 'bg-warning' : 'bg-danger');
+                        
+                        alignmentHtml += `
+                            <div class="col-md-4 col-6 mb-2">
+                                <div class="body-segment ${statusClass} text-white">
+                                    ${segment.replace('_', ' ')}: ${status.toUpperCase()}
+                                </div>
+                            </div>
+                        `;
+                    }
+                    alignmentHtml += '</div>';
+                    document.getElementById('bodyAlignmentInfo').innerHTML = alignmentHtml;
+                }
+                
+                // Posture issues
+                if (postureData.issues && postureData.issues.length > 0) {
+                    let issuesHtml = '<ul class="list-group">';
+                    postureData.issues.forEach(issue => {
+                        issuesHtml += `<li class="list-group-item">${issue}</li>`;
+                    });
+                    issuesHtml += '</ul>';
+                    document.getElementById('postureIssues').innerHTML = issuesHtml;
+                }
+                
+                // Recommendations
+                if (postureData.recommendations && postureData.recommendations.length > 0) {
+                    let recoHtml = '<ul class="list-group">';
+                    postureData.recommendations.forEach(reco => {
+                        recoHtml += `<li class="list-group-item">${reco}</li>`;
+                    });
+                    recoHtml += '</ul>';
+                    document.getElementById('postureRecommendations').innerHTML = recoHtml;
+                }
+                
+                // Create charts if Chart.js is available
+                if (typeof Chart !== 'undefined') {
+                    createPostureCharts(postureData);
+                }
+            }
+            
+            // Create visualization charts for posture data
+            function createPostureCharts(postureData) {
+                // Confidence chart
+                const confidenceCtx = document.getElementById('postureConfidenceChart').getContext('2d');
+                if (window.confidenceChart) window.confidenceChart.destroy();
+                
+                window.confidenceChart = new Chart(confidenceCtx, {
+                    type: 'doughnut',
+                    data: {
+                        labels: ['Confidence', 'Uncertainty'],
+                        datasets: [{
+                            data: [postureData.confidence || 0, 100 - (postureData.confidence || 0)],
+                            backgroundColor: ['rgba(54, 162, 235, 0.8)', 'rgba(211, 211, 211, 0.3)'],
+                            borderWidth: 1
+                        }]
+                    },
+                    options: {
+                        responsive: true,
+                        maintainAspectRatio: false,
+                        plugins: {
+                            title: {
+                                display: true,
+                                text: 'Posture Detection Confidence'
+                            }
+                        }
+                    }
+                });
+                
+                // Body segments chart if data available
+                if (postureData.body_alignment) {
+                    const segmentsCtx = document.getElementById('bodySegmentsChart').getContext('2d');
+                    if (window.segmentsChart) window.segmentsChart.destroy();
+                    
+                    const segments = Object.keys(postureData.body_alignment).map(s => s.replace('_', ' '));
+                    const statuses = Object.values(postureData.body_alignment);
+                    
+                    // Convert status to numeric values for visualization
+                    const statusValues = statuses.map(status => {
+                        if (status === 'good') return 100;
+                        if (status === 'fair') return 60;
+                        return 30; // poor
+                    });
+                    
+                    window.segmentsChart = new Chart(segmentsCtx, {
+                        type: 'bar',
+                        data: {
+                            labels: segments,
+                            datasets: [{
+                                label: 'Body Segment Alignment',
+                                data: statusValues,
+                                backgroundColor: statusValues.map(val => {
+                                    if (val >= 80) return 'rgba(40, 167, 69, 0.7)';
+                                    if (val >= 50) return 'rgba(255, 193, 7, 0.7)';
+                                    return 'rgba(220, 53, 69, 0.7)';
+                                }),
+                                borderColor: 'rgba(0, 0, 0, 0.1)',
+                                borderWidth: 1
+                            }]
+                        },
+                        options: {
+                            responsive: true,
+                            maintainAspectRatio: false,
+                            scales: {
+                                y: {
+                                    beginAtZero: true,
+                                    max: 100
+                                }
+                            },
+                            plugins: {
+                                title: {
+                                    display: true,
+                                    text: 'Body Alignment Analysis'
+                                }
+                            }
+                        }
+                    });
                 }
             }
             

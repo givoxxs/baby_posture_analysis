@@ -6,6 +6,7 @@ environment variables with sensible defaults.
 """
 
 import os
+import json
 from pathlib import Path
 from typing import List, Dict, Any, Optional, Union
 from pydantic import field_validator, Field
@@ -30,33 +31,8 @@ class Settings(BaseSettings):
     RELOAD_ON_CHANGE: bool = False
     APP_VERSION: str = "1.0.0"
     
-    # CORS settings
-    CORS_ORIGINS: List[str] = ["http://localhost:3000"]
-    
-    @field_validator("CORS_ORIGINS", mode="before")
-    @classmethod
-    def assemble_cors_origins(cls, v: Union[str, List[str]]) -> List[str]:
-        """Parse CORS_ORIGINS from string to list if needed."""
-        if isinstance(v, str):
-            if not v.strip():
-                # Handle empty string
-                return ["http://localhost:3000"]
-                
-            if v.startswith("[") and v.endswith("]"):
-                # Handle JSON array string
-                import json
-                try:
-                    return json.loads(v)
-                except Exception:
-                    # If JSON parsing fails, treat as comma-separated list
-                    # Remove the square brackets and process as comma-separated
-                    v = v.strip("[]")
-                    
-            # Handle comma separated string
-            return [i.strip() for i in v.split(",") if i.strip()]
-        elif isinstance(v, list):
-            return v
-        return ["http://localhost:3000"]  # Default value
+    # CORS settings - Use raw string to avoid automatic JSON parsing
+    CORS_ORIGINS_STR: str = Field(default="http://localhost:3000", alias="CORS_ORIGINS")
     
     # MediaPipe settings
     MODEL_COMPLEXITY: int = 2
@@ -87,6 +63,25 @@ class Settings(BaseSettings):
     LOG_FILE: str = str(LOG_DIR / "app.log")
 
     model_config = SettingsConfigDict(env_file=".env", case_sensitive=True)
+    
+    @property
+    def CORS_ORIGINS(self) -> List[str]:
+        """Parse CORS_ORIGINS_STR string to list when needed."""
+        if not self.CORS_ORIGINS_STR or not self.CORS_ORIGINS_STR.strip():
+            return ["http://localhost:3000"]
+            
+        # Try JSON parsing if it looks like a JSON array
+        if self.CORS_ORIGINS_STR.strip().startswith("[") and self.CORS_ORIGINS_STR.strip().endswith("]"):
+            try:
+                parsed = json.loads(self.CORS_ORIGINS_STR)
+                if isinstance(parsed, list):
+                    return [str(origin) for origin in parsed if origin]
+            except Exception:
+                # Fall through to comma-separated handling
+                pass
+        
+        # Handle as comma separated string
+        return [i.strip() for i in self.CORS_ORIGINS_STR.split(",") if i.strip()]
 
     def __init__(self, **kwargs):
         super().__init__(**kwargs)

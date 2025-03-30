@@ -1,192 +1,78 @@
-import time
-import numpy as np
-import cv2
-from fastapi import UploadFile, HTTPException
-from typing import Dict, Any, Tuple, Optional, List, Union
+"""
+Service for pose detection operations.
+"""
 
+import cv2
+import numpy as np
+import base64
+import time
+from fastapi import UploadFile
+from typing import Dict, Any, List, Optional, Tuple
+
+from app.utils.image_utils import load_image, to_base64
 from app.utils.mediapipe_utils import PoseDetector
-from app.utils.image_preprocessor import ImagePreProcessor
-from app.services.image_service import ImageService
+from app.config import settings
+
 
 class PoseService:
-    """Service for pose detection and analysis"""
+    """Service for handling pose detection."""
     
-    def __init__(
-        self, 
-        image_service: Optional[ImageService] = None,
-        pose_detector: Optional[PoseDetector] = None
-    ):
-        """
-        Initialize the pose service
-        
-        Args:
-            image_service: Optional ImageService instance. If None, a default one is created.
-            pose_detector: Optional PoseDetector instance. If None, a default one is created.
-        """
-        self.image_service = image_service or ImageService()
-        self.pose_detector = pose_detector or PoseDetector(
-            static_image_mode=True,
-            model_complexity=2,
-            min_detection_confidence=0.5,
-            min_tracking_confidence=0.5,
-            confidence_threshold=0.5
+    def __init__(self):
+        """Initialize the pose service with a PoseDetector."""
+        self.pose_detector = PoseDetector(
+            model_complexity=settings.MODEL_COMPLEXITY,
+            min_detection_confidence=settings.MIN_DETECTION_CONFIDENCE
         )
-    
-    async def detect_pose_from_file(
+        
+    async def detect_pose(
         self, 
         file: UploadFile,
         high_resolution: bool = False,
-        include_annotated_image: bool = True
+        include_annotated_image: bool = True,
+        include_analysis: bool = False
     ) -> Dict[str, Any]:
-        """
-        Process an image file and detect pose
-        
-        Args:
-            file: UploadFile from FastAPI
-            high_resolution: Whether to use higher resolution for detection
-            include_annotated_image: Whether to include the annotated image in the response
-            
-        Returns:
-            Dictionary with keypoints data and optionally the annotated image
-        """
+        """Detect pose from an uploaded image."""
         start_time = time.time()
         
-        # First, preprocess the image using the image service
-        await self.image_service.validate_image_file(file)
+        # Load image
+        image = await load_image(file)
         
-        # Use specialized preprocessing for MediaPipe
-        processed_image = await self.image_service.processor.preprocess_for_mediapipe(
-            file,
-            high_resolution=high_resolution
-        )
+        # Process image for pose detection
+        if high_resolution:
+            # Use higher resolution for better accuracy
+            processed_image = cv2.resize(image, (1280, 720), interpolation=cv2.INTER_AREA)
+        else:
+            # Use standard resolution
+            processed_image = cv2.resize(image, (settings.IMAGE_WIDTH, settings.IMAGE_HEIGHT), interpolation=cv2.INTER_AREA)
         
-        # Detect pose in the processed image
+        # Detect pose
         keypoints_data, annotated_image = self.pose_detector.detect_pose(processed_image)
         
-        if not keypoints_data:
-            raise HTTPException(
-                status_code=400, 
-                detail="No pose detected in the image. Please try with a different image."
-            )
+        if keypoints_data is None:
+            return {"message": "No person detected in the image", "keypoints_data": {"keypoints": [], "processing_time_ms": 0, "total_processing_time_ms": 0}}
         
         # Calculate joint angles
-        angles = self.pose_detector.get_pose_angles(keypoints_data)
-        keypoints_data['joint_angles'] = angles
+        joint_angles = self.pose_detector.get_pose_angles(keypoints_data)
+        keypoints_data["joint_angles"] = joint_angles
         
-        # Calculate total processing time
-        total_processing_time = (time.time() - start_time) * 1000
-        keypoints_data['total_processing_time_ms'] = round(total_processing_time, 2)
+        # Create response
+        total_time = (time.time() - start_time) * 1000  # in milliseconds
+        keypoints_data["total_processing_time_ms"] = total_time
         
-        # Prepare response
         response = {
-            "message": "Pose detection successful",
             "keypoints_data": keypoints_data,
+            "message": "Pose detected successfully"
         }
         
-        # Include the annotated image if requested
+        # Include annotated image if requested
         if include_annotated_image and annotated_image is not None:
-            base64_annotated = self.image_service.processor.to_base64(annotated_image)
-            response["annotated_image"] = base64_annotated
+            response["annotated_image"] = to_base64(annotated_image)
+            
+        # Include posture analysis if requested
+        if include_analysis:
+            from app.services.posture_service import PostureService
+            posture_service = PostureService()
+            posture_analysis = posture_service.analyze_from_keypoints(keypoints_data)
+            response["posture_analysis"] = posture_analysis
         
         return response
-    
-    async def detect_pose_from_processed_image(
-        self,
-        image: np.ndarray,
-        include_annotated_image: bool = True
-    ) -> Dict[str, Any]:
-        """
-        Detect pose from an already processed image
-        
-        Args:
-            image: Preprocessed image as numpy array
-            include_annotated_image: Whether to include the annotated image in the response
-            
-        Returns:
-            Dictionary with keypoints data and optionally the annotated image
-        """
-        start_time = time.time()
-        
-        # Detect pose in the processed image
-        keypoints_data, annotated_image = self.pose_detector.detect_pose(image)
-        
-        if not keypoints_data:
-            raise HTTPException(
-                status_code=400, 
-                detail="No pose detected in the image. Please try with a different image."
-            )
-        
-        # Calculate joint angles
-        angles = self.pose_detector.get_pose_angles(keypoints_data)
-        keypoints_data['joint_angles'] = angles
-        
-        # Calculate total processing time
-        total_processing_time = (time.time() - start_time) * 1000
-        keypoints_data['total_processing_time_ms'] = round(total_processing_time, 2)
-        
-        # Prepare response
-        response = {
-            "message": "Pose detection successful",
-            "keypoints_data": keypoints_data,
-        }
-        
-        # Include the annotated image if requested
-        if include_annotated_image and annotated_image is not None:
-            base64_annotated = self.image_service.processor.to_base64(annotated_image)
-            response["annotated_image"] = base64_annotated
-        
-        return response
-    
-    def analyze_posture(self, keypoints_data: Dict[str, Any]) -> Dict[str, Any]:
-        """
-        Analyze the posture based on keypoints
-        
-        Args:
-            keypoints_data: Keypoints data from detect_pose
-            
-        Returns:
-            Dictionary with posture analysis results
-        """
-        # This is a placeholder for future implementation of posture analysis
-        # Will be expanded in future with more sophisticated analysis
-        
-        angles = keypoints_data.get('joint_angles', {})
-        
-        # Basic analysis based on joint angles
-        analysis = {
-            "posture_type": "unknown",
-            "symmetry_score": 0,
-            "notes": []
-        }
-        
-        # Check for limb symmetry (if both sides are detected)
-        if 'left_knee' in angles and 'right_knee' in angles:
-            knee_diff = abs(angles['left_knee'] - angles['right_knee'])
-            if knee_diff > 15:
-                analysis["notes"].append(f"Asymmetric knee angles (difference of {knee_diff:.1f} degrees)")
-        
-        if 'left_elbow' in angles and 'right_elbow' in angles:
-            elbow_diff = abs(angles['left_elbow'] - angles['right_elbow'])
-            if elbow_diff > 15:
-                analysis["notes"].append(f"Asymmetric elbow angles (difference of {elbow_diff:.1f} degrees)")
-        
-        # Calculate basic symmetry score
-        symmetry_deductions = 0
-        if 'left_knee' in angles and 'right_knee' in angles:
-            symmetry_deductions += abs(angles['left_knee'] - angles['right_knee']) / 180.0
-        
-        if 'left_elbow' in angles and 'right_elbow' in angles:
-            symmetry_deductions += abs(angles['left_elbow'] - angles['right_elbow']) / 180.0
-        
-        if 'left_hip' in angles and 'right_hip' in angles:
-            symmetry_deductions += abs(angles['left_hip'] - angles['right_hip']) / 180.0
-        
-        # Scale to 0-100
-        if symmetry_deductions > 0:
-            analysis["symmetry_score"] = max(0, 100 - (symmetry_deductions * 50))
-        else:
-            analysis["symmetry_score"] = 100
-        
-        analysis["symmetry_score"] = round(analysis["symmetry_score"], 1)
-        
-        return analysis

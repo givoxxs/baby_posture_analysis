@@ -12,17 +12,7 @@ class ImagePreProcessor:
         self.height = height
         
     async def load_image_from_upload(self, file: UploadFile) -> np.ndarray:
-        """
-        Load image from FastAPI UploadFile
-        
-        Args:
-            file: UploadFile from FastAPI
-            
-        Returns:
-            numpy array of the image
-        """
         try:
-            # Reset file position to start in case it was read before
             await file.seek(0)
             content = await file.read()
             img = np.asarray(bytearray(content), dtype="uint8")
@@ -31,21 +21,10 @@ class ImagePreProcessor:
                 raise ValueError("Could not decode image")
             return img
         except Exception as e:
-            # Add better error handling with logging
             print(f"Error loading image from upload: {str(e)}")
             raise ValueError(f"Failed to load image: {str(e)}")
 
     def load_image_from_base64(self, base64_str: str) -> np.ndarray:
-        """
-        Load image from base64 string
-        
-        Args:
-            base64_str: Base64 encoded image string
-            
-        Returns:
-            numpy array of the image
-        """
-        # Handle potential data URI prefix
         if ',' in base64_str:
             base64_str = base64_str.split(',')[1]
             
@@ -55,27 +34,9 @@ class ImagePreProcessor:
         return img
     
     def resize_image(self, image: np.ndarray) -> np.ndarray:
-        """
-        Resize image to standard dimensions
-        
-        Args:
-            image: Input image as numpy array
-            
-        Returns:
-            Resized image
-        """
         return cv2.resize(image, (self.width, self.height), interpolation=cv2.INTER_AREA) 
     
     def normalize_colors(self, image: np.ndarray) -> np.ndarray:
-        """
-        Normalize colors, convert to RGB if needed, and adjust brightness/contrast
-        
-        Args:
-            image: Input image as numpy array
-            
-        Returns:
-            Color normalized image
-        """
         # Convert BGR to RGB if needed
         if image.shape[2] == 3:
             image = cv2.cvtColor(image, cv2.COLOR_BGR2RGB)
@@ -118,25 +79,11 @@ class ImagePreProcessor:
                               apply_normalize: bool = True, 
                               apply_filter: bool = True,
                               filter_type: str = 'gaussian') -> np.ndarray:
-        """
-        Complete preprocessing pipeline for images
-        
-        Args:
-            image_source: UploadFile, base64 string or numpy array
-            apply_resize: Whether to apply resizing
-            apply_normalize: Whether to apply color normalization
-            apply_filter: Whether to apply noise filtering
-            filter_type: Type of noise filter to apply
-            
-        Returns:
-            Preprocessed image
-        """
         # Debug input type
         print(f"Image source type: {type(image_source)}")
         
         # Load image based on source type - improved type checking
         if hasattr(image_source, "read") and callable(getattr(image_source, "read")):
-            # This is likely a file-like object such as UploadFile
             image = await self.load_image_from_upload(image_source)
         elif isinstance(image_source, str):
             image = self.load_image_from_base64(image_source)
@@ -158,15 +105,6 @@ class ImagePreProcessor:
         return image
     
     def to_base64(self, image: np.ndarray) -> str:
-        """
-        Convert processed image to base64 for easy transmission
-        
-        Args:
-            image: Processed image as numpy array
-            
-        Returns:
-            Base64 encoded string
-        """
         # If image is normalized to float values, convert back to uint8
         if image.dtype == np.float32 or image.dtype == np.float64:
             image = (image * 255).astype(np.uint8)
@@ -186,15 +124,6 @@ class ImagePreProcessor:
         return f"data:image/jpeg;base64,{base64_str}"
 
     def enhance_for_pose_detection(self, image: np.ndarray) -> np.ndarray:
-        """
-        Enhance image specifically for MediaPipe pose detection
-        
-        Args:
-            image: Input image as numpy array
-            
-        Returns:
-            Enhanced image optimized for pose detection
-        """
         # Convert to uint8 if needed
         if image.dtype != np.uint8:
             image = (image * 255).astype(np.uint8)
@@ -233,16 +162,6 @@ class ImagePreProcessor:
     async def preprocess_for_mediapipe(self, 
                                       image_source: Union[UploadFile, str, np.ndarray],
                                       high_resolution: bool = False) -> np.ndarray:
-        """
-        Specialized preprocessing pipeline optimized for MediaPipe
-        
-        Args:
-            image_source: UploadFile, base64 string or numpy array
-            high_resolution: Whether to use higher resolution (720p) for better keypoint detection
-            
-        Returns:
-            Preprocessed image optimized for MediaPipe
-        """
         # Debug input type
         print(f"MediaPipe preprocessing - Image source type: {type(image_source)}")
         

@@ -1,15 +1,16 @@
-# Baby Posture Detection API
-This project provides a REST API for detecting the posture of a baby from images using MediaPipe. It can identify postures like lying on stomach, face down, folded limbs, kicking off blankets, and lying on the side. The API can trigger alerts when a dangerous posture is detected.
+# Baby Posture Analysis
+
+An application for analyzing baby sleeping postures using computer vision and MediaPipe.
 
 ## Features
 
-*   **Image-based posture detection:** Analyzes images to identify baby's posture.
-*   **MediaPipe integration:** Uses MediaPipe for fast and efficient keypoint extraction.
-*   **Risk analysis:** Assesses the risk level of the detected posture.
-*   **Alert system:** Sends alerts (e.g., push notifications, SMS - *configurable*) when a dangerous posture is detected.
-*   **REST API:** Provides a simple API for easy integration with other applications (e.g., a mobile app).
-*   **Customizable:** Easily configurable through environment variables (`.env` file).
-*   **Expandable:** Designed to be easily extended with new features (e.g., video processing, sleep analysis).
+* **Image-based posture detection:** Analyzes images to identify baby's posture
+* **MediaPipe integration:** Uses MediaPipe for fast and efficient keypoint extraction
+* **Risk analysis:** Assesses the risk level of detected postures
+* **REST API:** Provides a simple API for integration with other applications
+* **Simple UI:** Web interface for testing and demonstration
+
+## Project Structure
 
 ## Prerequisites
 
@@ -102,9 +103,6 @@ The `.env` file contains environment variables that control the behavior of the 
 | `IMAGE_WIDTH`              | Width of image before using mediapipe                                                 | 256        |
 | `IMAGE_HEIGHT`             | Height of image before using mediapipe                                                 | 256     |
 | ...                         | Other configuration variables (e.g., for alert systems, database, etc.).         |          |
-
-## Project Structure
-
 
 ## Contributing
 

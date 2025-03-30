@@ -1,198 +1,104 @@
-import time
-import numpy as np
-from fastapi import UploadFile, HTTPException
-from typing import Dict, Any, Tuple, Optional, Union
+"""
+Service for image processing operations.
+"""
 
-from app.utils.image_preprocessor import ImagePreProcessor
+import cv2
+import numpy as np
+import base64
+from fastapi import UploadFile
+from typing import Dict, Any, Union
+
+from app.utils.image_utils import load_image, resize_image, normalize_colors, filter_noise, to_base64
+from app.config import settings
+
 
 class ImageService:
-    """Service for image processing operations"""
-    
-    def __init__(self, processor: Optional[ImagePreProcessor] = None):
-        """
-        Initialize the image service
-        
-        Args:
-            processor: Optional ImagePreProcessor instance. If None, a default one is created.
-        """
-        self.processor = processor or ImagePreProcessor(width=640, height=480)
-    
-    async def validate_image_file(self, file: UploadFile) -> None:
-        """
-        Validate that the uploaded file is a valid image
-        
-        Args:
-            file: UploadFile from FastAPI
-            
-        Raises:
-            HTTPException: If file is not a valid image
-        """
-        content_type = file.content_type
-        if not content_type or not content_type.startswith("image/"):
-            raise HTTPException(
-                status_code=400, 
-                detail=f"File must be an image, got {content_type}"
-            )
+    """Service for handling image processing operations."""
     
     async def process_uploaded_image(
         self, 
-        file: UploadFile, 
-        apply_resize: bool = True,
-        apply_normalize: bool = True, 
-        apply_filter: bool = True,
-        filter_type: str = "gaussian"
-    ) -> Dict[str, Any]:
-        """
-        Process an uploaded image file with standard processing
-        
-        Args:
-            file: UploadFile from FastAPI
-            apply_resize: Whether to apply resizing
-            apply_normalize: Whether to apply color normalization
-            apply_filter: Whether to apply noise filtering
-            filter_type: Type of noise filter to apply
-            
-        Returns:
-            Dictionary with processed image and metadata
-        """
-        start_time = time.time()
-        
-        # Validate image
-        await self.validate_image_file(file)
-        
-        # Process the image
-        processed_image = await self.processor.preprocess_image(
-            file,
-            apply_resize=apply_resize,
-            apply_normalize=apply_normalize,
-            apply_filter=apply_filter,
-            filter_type=filter_type
-        )
-        
-        # Convert to base64 and prepare response
-        return self._prepare_response(
-            processed_image, 
-            start_time,
-            self.processor.width,
-            self.processor.height,
-            "Image processed successfully"
-        )
-    
-    async def process_base64_image(
-        self, 
-        base64_str: str,
-        apply_resize: bool = True,
-        apply_normalize: bool = True, 
-        apply_filter: bool = True,
-        filter_type: str = "gaussian"
-    ) -> Dict[str, Any]:
-        """
-        Process an image provided as base64 string
-        
-        Args:
-            base64_str: Base64 encoded image string
-            apply_resize: Whether to apply resizing
-            apply_normalize: Whether to apply color normalization
-            apply_filter: Whether to apply noise filtering
-            filter_type: Type of noise filter to apply
-            
-        Returns:
-            Dictionary with processed image and metadata
-        """
-        start_time = time.time()
-        
-        # Validate input
-        if not base64_str:
-            raise HTTPException(status_code=400, detail="Base64 image data is required")
-        
-        # Process the image
-        processed_image = await self.processor.preprocess_image(
-            base64_str,
-            apply_resize=apply_resize,
-            apply_normalize=apply_normalize,
-            apply_filter=apply_filter,
-            filter_type=filter_type
-        )
-        
-        # Convert to base64 and prepare response
-        return self._prepare_response(
-            processed_image, 
-            start_time,
-            self.processor.width,
-            self.processor.height,
-            "Image processed successfully"
-        )
-    
-    async def optimize_for_mediapipe(
-        self, 
         file: UploadFile,
-        high_resolution: bool = False
+        apply_resize: bool = True,
+        apply_normalize: bool = True,
+        apply_filter: bool = True,
+        filter_type: str = "gaussian"
     ) -> Dict[str, Any]:
-        """
-        Process an image with optimizations for MediaPipe
+        """Process an uploaded image with standard processing."""
+        # Load image
+        image = await load_image(file)
+        original_height, original_width = image.shape[:2]
         
-        Args:
-            file: UploadFile from FastAPI
-            high_resolution: Whether to use higher resolution
+        # Process image
+        start_time = cv2.getTickCount()
+        
+        if apply_resize:
+            image = resize_image(image, width=640, height=480)
             
-        Returns:
-            Dictionary with processed image and metadata
-        """
-        start_time = time.time()
-        
-        # Validate image
-        await self.validate_image_file(file)
-        
-        # Process the image with MediaPipe optimizations
-        processed_image = await self.processor.preprocess_for_mediapipe(
-            file,
-            high_resolution=high_resolution
-        )
-        
-        # Get dimensions based on resolution setting
-        width = 1280 if high_resolution else self.processor.width
-        height = 720 if high_resolution else self.processor.height
-        
-        # Convert to base64 and prepare response
-        return self._prepare_response(
-            processed_image, 
-            start_time,
-            width,
-            height,
-            "Image processed for MediaPipe successfully"
-        )
-    
-    def _prepare_response(
-        self, 
-        processed_image: np.ndarray,
-        start_time: float,
-        width: int,
-        height: int,
-        message: str = "Processing completed"
-    ) -> Dict[str, Any]:
-        """
-        Prepare standardized response for processed images
-        
-        Args:
-            processed_image: Processed image as numpy array
-            start_time: Processing start time for timing calculation
-            width: Width of the processed image
-            height: Height of the processed image
-            message: Success message
+        if apply_filter:
+            image = filter_noise(image, filter_type=filter_type)
             
-        Returns:
-            Dictionary with standardized response format
-        """
-        # Convert processed image to base64
-        base64_image = self.processor.to_base64(processed_image)
+        if apply_normalize:
+            image = normalize_colors(image)
+            
+        end_time = cv2.getTickCount()
+        processing_time_ms = (end_time - start_time) * 1000 / cv2.getTickFrequency()
         
-        # Calculate processing time
-        processing_time = (time.time() - start_time) * 1000  # Convert to milliseconds
+        # Get final dimensions
+        height, width = image.shape[:2]
+        
+        # Convert to base64
+        base64_image = to_base64(image)
         
         return {
-            "message": message,
             "processed_image": base64_image,
             "width": width,
             "height": height,
-            "processing_time_ms": round(processing_time, 2)
+            "original_width": original_width,
+            "original_height": original_height,
+            "processing_time_ms": processing_time_ms,
+        }
+    
+    async def optimize_for_mediapipe(
+        self,
+        file: UploadFile,
+        high_resolution: bool = False
+    ) -> Dict[str, Any]:
+        """Process an image with optimizations for MediaPipe."""
+        # Load image
+        image = await load_image(file)
+        
+        # Process for MediaPipe
+        start_time = cv2.getTickCount()
+        
+        # Resize based on resolution setting
+        if high_resolution:
+            image = resize_image(image, width=1280, height=720)
+        else:
+            image = resize_image(image, width=settings.IMAGE_WIDTH, height=settings.IMAGE_HEIGHT)
+            
+        # Apply median filter for noise reduction
+        image = filter_noise(image, filter_type="median", kernel_size=3)
+        
+        # Enhance contrast for better detection
+        lab = cv2.cvtColor(image, cv2.COLOR_BGR2LAB)
+        l, a, b = cv2.split(lab)
+        clahe = cv2.createCLAHE(clipLimit=2.0, tileGridSize=(8, 8))
+        cl = clahe.apply(l)
+        enhanced_lab = cv2.merge((cl, a, b))
+        image = cv2.cvtColor(enhanced_lab, cv2.COLOR_LAB2BGR)
+        
+        end_time = cv2.getTickCount()
+        processing_time_ms = (end_time - start_time) * 1000 / cv2.getTickFrequency()
+        
+        # Get final dimensions
+        height, width = image.shape[:2]
+        
+        # Convert to base64
+        base64_image = to_base64(image)
+        
+        return {
+            "processed_image": base64_image,
+            "width": width,
+            "height": height,
+            "processing_time_ms": processing_time_ms,
         }

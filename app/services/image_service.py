@@ -7,8 +7,17 @@ import numpy as np
 import base64
 from fastapi import UploadFile
 from typing import Dict, Any, Union
+import time
 
-from app.utils.image_utils import load_image, resize_image, normalize_colors, filter_noise, to_base64
+from app.utils.image_utils import (
+    load_image, 
+    load_image_from_base64,
+    resize_image, 
+    normalize_colors, 
+    filter_noise, 
+    to_base64, 
+    enhance_for_pose_detection
+)
 from app.config import settings
 
 
@@ -29,7 +38,7 @@ class ImageService:
         original_height, original_width = image.shape[:2]
         
         # Process image
-        start_time = cv2.getTickCount()
+        start_time = time.time()
         
         if apply_resize:
             image = resize_image(image, width=640, height=480)
@@ -58,34 +67,58 @@ class ImageService:
             "processing_time_ms": processing_time_ms,
         }
     
+    async def process_base64_image(
+        self, 
+        base64_string: str,
+        apply_resize: bool = True,
+        apply_normalize: bool = True,
+        apply_filter: bool = True,
+        filter_type: str = "gaussian"
+    ) -> Dict[str, Any]:
+        """Process an image provided as base64 string."""
+        # Load image from base64
+        image = load_image_from_base64(base64_string)
+        
+        # Process image
+        return await self.process_uploaded_image(
+            file=image,
+            apply_resize=apply_resize,
+            apply_normalize=apply_normalize,
+            apply_filter=apply_filter,
+            filter_type=filter_type
+        )
+
+    
     async def optimize_for_mediapipe(
         self,
-        file: UploadFile,
+        image_source: Union[UploadFile, str, np.ndarray],
         high_resolution: bool = False
-    ) -> Dict[str, Any]:
+    )  -> Dict[str, Any]:
         """Process an image with optimizations for MediaPipe."""
         # Load image
-        image = await load_image(file)
-        
+        if hasattr(image_source, "read") and callable(getattr(image_source, "read")):
+            # This is likely a file-like object such as UploadFile
+            image = await load_image(image_source)
+        elif isinstance(image_source, str):
+            image = load_image_from_base64(image_source)
+        elif isinstance(image_source, np.ndarray):
+            image = image_source
+        else:
+            raise ValueError(f"Unsupported image source type: {type(image_source)}")
         # Process for MediaPipe
-        start_time = cv2.getTickCount()
+        start_time = cv2.getTickCount() 
         
         # Resize based on resolution setting
         if high_resolution:
             image = resize_image(image, width=1280, height=720)
         else:
             image = resize_image(image, width=settings.IMAGE_WIDTH, height=settings.IMAGE_HEIGHT)
-            
-        # Apply median filter for noise reduction
+
         image = filter_noise(image, filter_type="median", kernel_size=3)
-        
-        # Enhance contrast for better detection
-        lab = cv2.cvtColor(image, cv2.COLOR_BGR2LAB)
-        l, a, b = cv2.split(lab)
-        clahe = cv2.createCLAHE(clipLimit=2.0, tileGridSize=(8, 8))
-        cl = clahe.apply(l)
-        enhanced_lab = cv2.merge((cl, a, b))
-        image = cv2.cvtColor(enhanced_lab, cv2.COLOR_LAB2BGR)
+         
+        image = normalize_colors(image)
+
+        image = enhance_for_pose_detection(image)
         
         end_time = cv2.getTickCount()
         processing_time_ms = (end_time - start_time) * 1000 / cv2.getTickFrequency()
@@ -93,11 +126,8 @@ class ImageService:
         # Get final dimensions
         height, width = image.shape[:2]
         
-        # Convert to base64
-        base64_image = to_base64(image)
-        
         return {
-            "processed_image": base64_image,
+            "processed_image": image,
             "width": width,
             "height": height,
             "processing_time_ms": processing_time_ms,

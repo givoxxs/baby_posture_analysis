@@ -4,8 +4,10 @@ API endpoints for image processing.
 
 from fastapi import APIRouter, UploadFile, File, Form, HTTPException, Depends
 from fastapi.responses import JSONResponse
-from typing import Optional
+from typing import Optional, Union
 import traceback
+
+import numpy as np
 
 from app.core.models.image import Base64ImageRequest, ImageProcessingResponse
 from app.services.image_service import ImageService
@@ -56,10 +58,12 @@ async def process_base64_image(
     """Process an image provided as base64 string."""
     try:
         # Implementation will be similar to process_uploaded_image but for base64
-        # This would be implemented in the ImageService
-        raise HTTPException(
-            status_code=501, 
-            detail="Base64 image processing not implemented yet"
+        return await image_service.process_base64_image(
+            base64_string=request.base64_string,
+            apply_resize=request.apply_resize,
+            apply_normalize=request.apply_normalize,
+            apply_filter=request.apply_filter,
+            filter_type=request.filter_type
         )
     except Exception as e:
         error_details = traceback.format_exc()
@@ -79,8 +83,8 @@ async def process_for_mediapipe(
     """Process an uploaded image with optimizations for MediaPipe."""
     try:
         return await image_service.optimize_for_mediapipe(
-            file=file,
-            high_resolution=high_resolution
+            image_source=file,
+            high_resolution=high_resolution,
         )
     except Exception as e:
         error_details = traceback.format_exc()

@@ -4,83 +4,94 @@ Simple application configuration without complex functions.
 
 import os
 from pathlib import Path
-from pydantic import Field
+from typing import Optional, List
 from pydantic_settings import BaseSettings, SettingsConfigDict
 from dotenv import load_dotenv
 
-# Load environment variables
+# Load .env file explicitly before initializing settings
 load_dotenv()
 
-# Base directories
-BASE_DIR = Path(__file__).resolve().parent
-PROJECT_DIR = BASE_DIR.parent
-STATIC_DIR = PROJECT_DIR / "static"
-TEMPLATES_DIR = PROJECT_DIR / "templates"
-
-
 class Settings(BaseSettings):
-    """Application settings loaded from environment variables."""
-    
-    # API settings
-    API_HOST: str = "0.0.0.0"
+    """Application settings."""
+    # Server settings
+    API_HOST: str = "127.0.0.1"
     API_PORT: int = 8000
-    DEBUG: bool = False
     RELOAD_ON_CHANGE: bool = False
-    APP_VERSION: str = "1.0.0"
     
-    # CORS settings
-    CORS_ORIGINS: str = Field(default="http://localhost:3000")
+    # API configuration
+    API_VERSION: str = "1.0.0"
+    API_TITLE: str = "Baby Posture Analysis API"
+    API_DESCRIPTION: str = "API for baby posture analysis using MediaPipe"
     
-    # MediaPipe settings
+    # Application configuration
+    DEBUG: bool = False
+    RATE_LIMIT_PER_MINUTE: int = 200
+
+    # Logging configuration
+    LOG_LEVEL: str = "INFO"
+    LOG_DIR: str = "./logs"
+    LOG_FORMAT: str = "%(asctime)s - %(name)s - %(levelname)s - %(message)s"
+    
+    # MediaPipe configuration
     MODEL_COMPLEXITY: int = 2
     MIN_DETECTION_CONFIDENCE: float = 0.5
+    MIN_TRACKING_CONFIDENCE: float = 0.5
     
-    # Image processing settings
-    IMAGE_WIDTH: int = 256
-    IMAGE_HEIGHT: int = 256
+    # Image processing
+    IMAGE_WIDTH: int = 640
+    IMAGE_HEIGHT: int = 480
+    ALLOWED_EXTENSIONS: str = "jpg,jpeg,png,gif"
     
-    # Posture analysis settings
-    ALERT_THRESHOLD: float = 7.0
+    # Video processing
+    FPS: int = 2
+    TIME_THRESHOLD: int = 30
     
-    # Notification settings
-    ENABLE_PUSH_NOTIFICATIONS: bool = False
+    # ML model settings
+    MODEL_PATH: str = "./models/posture_model.pkl"
+    CONFIDENCE_THRESHOLD: float = 0.75
     
-    # File paths
-    STATIC_DIR: Path = STATIC_DIR
-    TEMPLATES_DIR: Path = TEMPLATES_DIR
-    UPLOADS_DIR: Path = STATIC_DIR / "uploads"
-    PROCESSED_DIR: Path = STATIC_DIR / "processed"
+    # Paths
+    UPLOAD_DIR: str = "./uploads"
+    PROCESSED_DIR: str = "./processed"
+    STATIC_DIR: str = "./static"
+    TEMPLATES_DIR: str = "./templates"
     
-    # Logging settings
-    LOG_LEVEL: str = "INFO"
-    LOG_DIR: Path = PROJECT_DIR / "logs"
-    LOG_FILE: str = str(LOG_DIR / "app.log")
+    # CORS Settings
+    CORS_ORIGINS: str = "http://localhost:3000,http://localhost:8080"
+    
+    # Optional fields
+    LOG_FILE: Optional[str] = None
+    
+    model_config = SettingsConfigDict(
+        env_file='.env',
+        env_file_encoding='utf-8',
+        extra='ignore'  # Allow extra fields in the environment
+    )
 
-    model_config = SettingsConfigDict(env_file=".env", case_sensitive=True)
+# Initialize the Settings instance
+try:
+    settings = Settings()
+    # Set the log file path after initialization
+    settings.LOG_FILE = os.path.join(settings.LOG_DIR, "app.log")
+except Exception as e:
+    print(f"Error loading settings: {e}")
+    # Fallback to default settings if there's an error
+    settings = Settings()
+    settings.LOG_FILE = "./logs/app.log"
 
-
-# Create a global settings instance
-settings = Settings()
-
-
-def get_settings():
-    """Dependency for FastAPI to get settings."""
-    return settings
-
-
-# Create required directories
 def create_directories():
-    """Create required directories for the application."""
-    directories = [
+    """Create necessary directories for the application."""
+    dirs = [
+        settings.UPLOAD_DIR, 
+        settings.PROCESSED_DIR,
         settings.STATIC_DIR,
         settings.TEMPLATES_DIR,
-        settings.UPLOADS_DIR,
-        settings.PROCESSED_DIR,
         settings.LOG_DIR,
+        os.path.dirname(os.path.abspath(settings.MODEL_PATH))
     ]
     
-    for directory in directories:
-        directory.mkdir(parents=True, exist_ok=True)
-
-# Create directories when module is imported
-create_directories()
+    for directory in dirs:
+        try:
+            Path(directory).mkdir(parents=True, exist_ok=True)
+        except Exception as e:
+            print(f"Warning: Could not create directory {directory}: {e}")

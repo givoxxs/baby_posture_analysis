@@ -1,17 +1,15 @@
 from fastapi import APIRouter, UploadFile, File, Form, HTTPException, Depends # type: ignore
 from fastapi.responses import JSONResponse # type: ignore
 import traceback
-from app.services.pose_service import PoseService
+from app.services.pose_service import PoseService, get_singleton_pose_service
+import logging # Import logging
+
+logger = logging.getLogger(__name__)
 
 router = APIRouter(
-    prefix="/api/pipeline",
-    tags=["pipeline"]
+    prefix="/api/pipeline_image",
+    tags=["pipeline_image"]
 )
-
-pose_service_instance = PoseService()
-
-def get_singleton_pose_service():
-    return pose_service_instance
 
 @router.post("/analyze")
 async def analyze_image(
@@ -23,19 +21,36 @@ async def analyze_image(
         result = await pose_service.analyze_posture(
             file=file
         )
+
+        if not result.get("success"):
+            logger.warning(f"Pipeline analysis failed for {file.filename}: {result.get('message')}")
+            # Trả về lỗi với thông báo từ service
+            raise HTTPException(
+                status_code=422, # Unprocessable Entity hoặc mã lỗi phù hợp khác
+                detail=result.get("message", "Analysis failed")
+            )
         
         # Structure response in a user-friendly format
         if result["success"]:
             response = {
                 "success": True,
                 "posture": {
-                    "type": result["posture_type"],
-                    "risk_score": result["risk_score"],
-                    "reasons": result["reasons"]
+                    "position": result['analysis']["position"],
+                    "is_covered": result['analysis']["is_covered"],
+                    "risk_level": result['analysis']["risk_level"],
+                    "unnatural_limbs": result['analysis']["unnatural_limbs"],
+                    "risk_score": result['analysis']["risk_score"],
+                    "confidence": result['analysis']["confidence"],
+                    "reasons": result['analysis']["reasons"],
+                    "recommendations": result['analysis']["recommendations"],
                 },
                 "image": {
                     "annotated": result["annotated_image"],
                     "processing_time_ms": result["processing_time_ms"]
+                },
+                "image_dimensions": {
+                    "width": result["image_dimensions"]["width"],
+                    "height": result["image_dimensions"]["height"]
                 }
             }
         else:

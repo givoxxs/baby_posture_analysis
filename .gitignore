@@ -26,3 +26,6 @@ Thumbs.db
 *.out
 *.err
 *.pid
+
+logs
+*.log

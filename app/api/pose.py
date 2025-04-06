@@ -1,17 +1,12 @@
-"""
-API endpoints for pose detection.
-"""
-
-from fastapi import APIRouter, UploadFile, File, Form, HTTPException, Depends
-from fastapi.responses import JSONResponse
+from fastapi import APIRouter, UploadFile, File, Form, HTTPException, Depends # type: ignore
+from fastapi.responses import JSONResponse # type: ignore
 from typing import Optional
 import traceback
+import logging # Import logging
 
-from app.services.pose_service import PoseService
+from app.services.pose_service import PoseService, get_singleton_pose_service
 
-# Dependency to get PoseService instance
-def get_pose_service():
-    return PoseService()
+logger = logging.getLogger(__name__)
 
 router = APIRouter(
     prefix="/api/pose",
@@ -21,23 +16,13 @@ router = APIRouter(
 @router.post("/detect")
 async def detect_pose(
     file: UploadFile = File(...),
-    high_resolution: bool = Form(False),
     include_annotated_image: bool = Form(True),
     include_analysis: bool = Form(False),
-    pose_service: PoseService = Depends(get_pose_service)
+    pose_service: PoseService = Depends(get_singleton_pose_service)
 ):
-    """
-    Detect pose from an uploaded image.
-    
-    - **file**: Image file
-    - **high_resolution**: Whether to use high resolution processing
-    - **include_annotated_image**: Whether to include the annotated image in the response
-    - **include_analysis**: Whether to include posture analysis in the response
-    """
     try:
         result = await pose_service.detect_pose(
             file=file,
-            high_resolution=high_resolution,
             include_annotated_image=include_annotated_image,
             include_analysis=include_analysis
         )
@@ -54,77 +39,56 @@ async def detect_pose(
 @router.post("/analyze")
 async def analyze_posture(
     file: UploadFile = File(...),
-    high_resolution: bool = Form(False),
-    pose_service: PoseService = Depends(get_pose_service)
+    pose_service: PoseService = Depends(get_singleton_pose_service)
 ):
-    """
-    Analyze baby posture from an uploaded image.
-    
-    - **file**: Image file
-    - **high_resolution**: Whether to use high resolution processing
-    """
     try:
+        # Get full posture analysis
         result = await pose_service.analyze_posture(
-            file=file,
-            high_resolution=high_resolution
-        )
-        
-        # Add confidence field for frontend compatibility
-        if result["success"]:
-            result["confidence"] = 95.0  # Sample confidence value
-        
-        return result
-    except Exception as e:
-        error_details = traceback.format_exc()
-        print(f"Error analyzing posture: {str(e)}\n{error_details}")
-        raise HTTPException(
-            status_code=500, 
-            detail=f"Error analyzing posture: {str(e)}"
+            file=file
         )
 
-@router.post("/posture/analyze")
-async def analyze_baby_posture(
-    file: UploadFile = File(...),
-    high_resolution: bool = Form(False),
-    pose_service: PoseService = Depends(get_pose_service)
-):
-    """
-    Complete endpoint for baby posture analysis (for frontend)
-    
-    - **file**: Image file
-    - **high_resolution**: Whether to use high resolution processing
-    """
-    try:
-        result = await pose_service.analyze_posture(
-            file=file,
-            high_resolution=high_resolution
-        )
+        if not result.get("success"):
+            logger.warning(f"Pipeline analysis failed for {file.filename}: {result.get('message')}")
+            # Trả về lỗi với thông báo từ service
+            raise HTTPException(
+                status_code=422, # Unprocessable Entity hoặc mã lỗi phù hợp khác
+                detail=result.get("message", "Analysis failed")
+            )
         
-        # Format for frontend
+        # Structure response in a user-friendly format
         if result["success"]:
-            return {
-                "posture_type": result["posture_type"],
-                "risk_score": result["risk_score"],
-                "confidence": 95.0,  # Sample confidence value
-                "reasons": result["reasons"],
-                "annotated_image": result["annotated_image"],
-                "processing_time_ms": result["processing_time_ms"],
-                "recommendations": [
-                    "Make sure baby sleeps on their back",
-                    "Keep the sleeping area free from blankets and toys",
-                    "Monitor baby frequently during sleep"
-                ]
+            response = {
+                "success": True,
+                "posture": {
+                    "position": result['analysis']["position"],
+                    "is_covered": result['analysis']["is_covered"],
+                    "risk_level": result['analysis']["risk_level"],
+                    "unnatural_limbs": result['analysis']["unnatural_limbs"],
+                    "risk_score": result['analysis']["risk_score"],
+                    "confidence": result['analysis']["confidence"],
+                    "reasons": result['analysis']["reasons"],
+                    "recommendations": result['analysis']["recommendations"],
+                },
+                "image": {
+                    "annotated": result["annotated_image"],
+                    "processing_time_ms": result["processing_time_ms"]
+                },
+                "image_dimensions": {
+                    "width": result["image_dimensions"]["width"],
+                    "height": result["image_dimensions"]["height"]
+                }
             }
         else:
-            return {
+            response = {
                 "success": False,
                 "message": result.get("message", "Failed to analyze posture")
             }
-            
+        
+        return JSONResponse(content=response)
     except Exception as e:
         error_details = traceback.format_exc()
-        print(f"Error analyzing baby posture: {str(e)}\n{error_details}")
+        print(f"Error in image pipeline: {str(e)}\n{error_details}")
         raise HTTPException(
             status_code=500, 
-            detail=f"Error analyzing baby posture: {str(e)}"
+            detail=f"Error in image pipeline: {str(e)}"
         )

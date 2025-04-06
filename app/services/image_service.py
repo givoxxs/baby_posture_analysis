@@ -17,15 +17,11 @@ class ImageService:
     async def process_image(
         self,
         file: UploadFile,
-        high_resolution: bool = False,
-        apply_noise_filter: bool = True
     ) -> Dict[str, Any]:
 
         # Process the image
         processed_image = await preprocess_image(
             image_source=file,
-            high_resolution=high_resolution,
-            apply_noise_filter=apply_noise_filter
         )
         
         # Get dimensions
@@ -38,23 +34,16 @@ class ImageService:
             "processed_image": base64_image,
             "width": width,
             "height": height,
-            "high_resolution": high_resolution
         }
     
     async def process_base64_image(
         self,
         base64_string: str,
-        apply_resize: bool = True,
-        apply_normalize: bool = True,
-        apply_filter: bool = True,
-        filter_type: str = "gaussian"
     ) -> Dict[str, Any]:
 
         # Simply use the preprocess_image function with appropriate parameters
         processed_image = await preprocess_image(
-            image_source=base64_string,
-            high_resolution=False,
-            apply_noise_filter=apply_filter
+            image_source=base64_string
         )
         
         # Get dimensions
@@ -94,3 +83,7 @@ class ImageService:
             "height": height,
             "high_resolution": high_resolution
         }
+
+image_service = ImageService()
+def get_image_service() -> ImageService:
+    return image_service

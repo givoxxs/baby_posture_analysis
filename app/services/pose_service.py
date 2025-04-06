@@ -8,10 +8,13 @@ from typing import Dict, Any, List, Tuple, Optional
 import cv2
 import traceback
 import time
+import logging
 
 from app.utils.image_preprocessing import preprocess_image, image_to_base64, load_image
 from app.utils.keypoint_extraction import PoseDetector
-from app.utils.posture_features import extract_posture_features, analyze_risk
+from app.utils.posture_features import  extract_posture_features_v3, analyze_risk_v3 #extract_posture_features, analyze_risk,
+
+logger = logging.getLogger(__name__)
 
 pose_detector = PoseDetector()
 def get_pose_detector() -> PoseDetector:
@@ -49,15 +52,15 @@ class PoseService:
                 "message": "No pose detected in the image"
             }
         
-        # Calculate processing time
-        processing_time = (time.time() - start_time) * 1000  # ms
-        keypoints_data["processing_time_ms"] = processing_time
-        
         # Prepare response
         result = {
             "success": True,
             "keypoints": keypoints_data["keypoints"],
-            "processing_time_ms": keypoints_data["processing_time_ms"]
+            "processing_time_ms": keypoints_data["processing_time_ms"],
+            "image_dimensions": {
+                    "width": keypoints_data.get("image_width"),
+                    "height": keypoints_data.get("image_height")
+                },
         }
         
         # Add annotated image if requested
@@ -66,19 +69,13 @@ class PoseService:
         
         # Add analysis if requested
         if include_analysis:
-            # Extract features from keypoints
-            features = extract_posture_features(keypoints_data["keypoints"])
-            
-            # Analyze risk
-            posture_type, risk_score, reasons = analyze_risk(features)
-            
-            # Add analysis to result
-            result["analysis"] = {
-                "posture_type": posture_type,
-                "risk_score": risk_score,
-                "reasons": reasons,
-                "features": features
-            }
+            features = extract_posture_features_v3(keypoints_data["keypoints"])
+
+            result["analysis"] = analyze_risk_v3(features)
+
+        processing_time = (time.time() - start_time) * 1000  # ms
+        keypoints_data["analyze_time_ms"] = processing_time
+        logger.info(f"Pose detection completed for {file.filename} in {processing_time} ms")    
         
         return result
 
@@ -93,17 +90,25 @@ class PoseService:
             include_annotated_image=True,
             include_analysis=True
         )
-        
-        if not result["success"]:
+
+        if not result.get("success"):
+            logger.warning(f"Analysis failed because detection failed for {file.filename}. Message: {result.get('message')}")
             return result
         
-        # Simplify result structure for client
-        analysis = result["analysis"]
-        return {
-            "success": True,
-            "posture_type": analysis["posture_type"],
-            "risk_score": analysis["risk_score"],
-            "reasons": analysis["reasons"],
-            "annotated_image": result.get("annotated_image"),
-            "processing_time_ms": result["processing_time_ms"]
-        }
+        if "analysis" not in result:
+             logger.error(f"Analysis results missing in successful detection for {file.filename}")
+             return {"success": False, "message": "Analysis results are missing unexpectedly."}
+        
+        logger.info(f"Full analysis successful for {file.filename}")
+        # print(result)
+        return result
+    
+# TẠO INSTANCE DUY NHẤT CỦA PoseService
+pose_service_instance = PoseService()
+print(f"--- Đã tạo PoseService Singleton (ID: {id(pose_service_instance)}) ---")
+
+# HÀM GETTER CHO SINGLETON
+def get_singleton_pose_service() -> PoseService:
+    """Trả về instance PoseService đã được tạo sẵn."""
+    print(f"--- Cung cấp PoseService Singleton (ID: {id(pose_service_instance)}) ---")
+    return pose_service_instance

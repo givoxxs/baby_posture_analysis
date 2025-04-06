@@ -2,77 +2,108 @@
 Service for pose detection operations.
 """
 
-import cv2
-import numpy as np
-import base64
-import time
 from fastapi import UploadFile
-from typing import Dict, Any, List, Optional, Tuple
+import numpy as np
+from typing import Dict, Any, List, Tuple, Optional
+import cv2
+import traceback
+import time
 
-from app.utils.image_utils import load_image, to_base64
-from app.utils.mediapipe_utils import PoseDetector
-from app.config import settings
+from app.utils.image_preprocessing import preprocess_image, image_to_base64, load_image
+from app.utils.keypoint_extraction import PoseDetector
+from app.utils.posture_features import extract_posture_features, analyze_risk
 
+pose_detector = PoseDetector()
+def get_pose_detector() -> PoseDetector:
+    return pose_detector
 
 class PoseService:
-    """Service for handling pose detection."""
+    """Service for detecting and analyzing body pose."""
     
     def __init__(self):
-        """Initialize the pose service with a PoseDetector."""
-        self.pose_detector = PoseDetector(
-            model_complexity=settings.MODEL_COMPLEXITY,
-            min_detection_confidence=settings.MIN_DETECTION_CONFIDENCE
-        )
-        
+        # Initialize the pose detector
+        self.pose_detector = get_pose_detector()
+    
     async def detect_pose(
-        self, 
+        self,
         file: UploadFile,
-        high_resolution: bool = False,
         include_annotated_image: bool = True,
         include_analysis: bool = False
     ) -> Dict[str, Any]:
-        """Detect pose from an uploaded image."""
+        # Start timing
         start_time = time.time()
         
-        # Load image
-        image = await load_image(file)
-        
-        # Process image for pose detection
-        if high_resolution:
-            # Use higher resolution for better accuracy
-            processed_image = cv2.resize(image, (1280, 720), interpolation=cv2.INTER_AREA)
-        else:
-            # Use standard resolution
-            processed_image = cv2.resize(image, (settings.IMAGE_WIDTH, settings.IMAGE_HEIGHT), interpolation=cv2.INTER_AREA)
+        # Preprocess the image
+        # preprocessed_image = await preprocess_image(
+        #     image_source=file
+        # )
+        preprocessed_image = await load_image(file)
         
         # Detect pose
-        keypoints_data, annotated_image = self.pose_detector.detect_pose(processed_image)
+        keypoints_data, annotated_image = self.pose_detector.detect_pose(preprocessed_image)
         
+        # If no pose was detected
         if keypoints_data is None:
-            return {"message": "No person detected in the image", "keypoints_data": {"keypoints": [], "processing_time_ms": 0, "total_processing_time_ms": 0}}
+            return {
+                "success": False,
+                "message": "No pose detected in the image"
+            }
         
-        # Calculate joint angles
-        joint_angles = self.pose_detector.get_pose_angles(keypoints_data)
-        keypoints_data["joint_angles"] = joint_angles
+        # Calculate processing time
+        processing_time = (time.time() - start_time) * 1000  # ms
+        keypoints_data["processing_time_ms"] = processing_time
         
-        # Create response
-        total_time = (time.time() - start_time) * 1000  # in milliseconds
-        keypoints_data["total_processing_time_ms"] = total_time
-        
-        response = {
-            "keypoints_data": keypoints_data,
-            "message": "Pose detected successfully"
+        # Prepare response
+        result = {
+            "success": True,
+            "keypoints": keypoints_data["keypoints"],
+            "processing_time_ms": keypoints_data["processing_time_ms"]
         }
         
-        # Include annotated image if requested
+        # Add annotated image if requested
         if include_annotated_image and annotated_image is not None:
-            response["annotated_image"] = to_base64(annotated_image)
-            
-        # Include posture analysis if requested
-        if include_analysis:
-            from app.services.posture_service import PostureService
-            posture_service = PostureService()
-            posture_analysis = posture_service.analyze_from_keypoints(keypoints_data)
-            response["posture_analysis"] = posture_analysis
+            result["annotated_image"] = image_to_base64(annotated_image)
         
-        return response
+        # Add analysis if requested
+        if include_analysis:
+            # Extract features from keypoints
+            features = extract_posture_features(keypoints_data["keypoints"])
+            
+            # Analyze risk
+            posture_type, risk_score, reasons = analyze_risk(features)
+            
+            # Add analysis to result
+            result["analysis"] = {
+                "posture_type": posture_type,
+                "risk_score": risk_score,
+                "reasons": reasons,
+                "features": features
+            }
+        
+        return result
+
+    async def analyze_posture(
+        self,
+        file: UploadFile
+    ) -> Dict[str, Any]:
+
+        # Get pose detection with analysis
+        result = await self.detect_pose(
+            file=file,
+            include_annotated_image=True,
+            include_analysis=True
+        )
+        
+        if not result["success"]:
+            return result
+        
+        # Simplify result structure for client
+        analysis = result["analysis"]
+        return {
+            "success": True,
+            "posture_type": analysis["posture_type"],
+            "risk_score": analysis["risk_score"],
+            "reasons": analysis["reasons"],
+            "annotated_image": result.get("annotated_image"),
+            "processing_time_ms": result["processing_time_ms"]
+        }

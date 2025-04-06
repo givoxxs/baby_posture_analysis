@@ -6,129 +6,91 @@ import cv2
 import numpy as np
 import base64
 from fastapi import UploadFile
-from typing import Dict, Any, Union
-import time
+from typing import Dict, Any, Union, Optional
 
-from app.utils.image_utils import (
-    load_image, 
-    load_image_from_base64,
-    resize_image, 
-    normalize_colors, 
-    filter_noise, 
-    to_base64, 
-    enhance_for_pose_detection
-)
-from app.config import settings
+from app.utils.image_preprocessing import preprocess_image, image_to_base64
 
 
 class ImageService:
     """Service for handling image processing operations."""
     
-    async def process_uploaded_image(
-        self, 
+    async def process_image(
+        self,
         file: UploadFile,
-        apply_resize: bool = True,
-        apply_normalize: bool = True,
-        apply_filter: bool = True,
-        filter_type: str = "gaussian"
+        high_resolution: bool = False,
+        apply_noise_filter: bool = True
     ) -> Dict[str, Any]:
-        """Process an uploaded image with standard processing."""
-        # Load image
-        image = await load_image(file)
-        original_height, original_width = image.shape[:2]
+
+        # Process the image
+        processed_image = await preprocess_image(
+            image_source=file,
+            high_resolution=high_resolution,
+            apply_noise_filter=apply_noise_filter
+        )
         
-        # Process image
-        start_time = time.time()
+        # Get dimensions
+        height, width = processed_image.shape[:2]
         
-        if apply_resize:
-            image = resize_image(image, width=640, height=480)
-            
-        if apply_filter:
-            image = filter_noise(image, filter_type=filter_type)
-            
-        if apply_normalize:
-            image = normalize_colors(image)
-            
-        end_time = cv2.getTickCount()
-        processing_time_ms = (end_time - start_time) * 1000 / cv2.getTickFrequency()
-        
-        # Get final dimensions
-        height, width = image.shape[:2]
-        
-        # Convert to base64
-        base64_image = to_base64(image)
+        # Convert to base64 for response
+        base64_image = image_to_base64(processed_image)
         
         return {
             "processed_image": base64_image,
             "width": width,
             "height": height,
-            "original_width": original_width,
-            "original_height": original_height,
-            "processing_time_ms": processing_time_ms,
+            "high_resolution": high_resolution
         }
     
     async def process_base64_image(
-        self, 
+        self,
         base64_string: str,
         apply_resize: bool = True,
         apply_normalize: bool = True,
         apply_filter: bool = True,
         filter_type: str = "gaussian"
     ) -> Dict[str, Any]:
-        """Process an image provided as base64 string."""
-        # Load image from base64
-        image = load_image_from_base64(base64_string)
-        
-        # Process image
-        return await self.process_uploaded_image(
-            file=image,
-            apply_resize=apply_resize,
-            apply_normalize=apply_normalize,
-            apply_filter=apply_filter,
-            filter_type=filter_type
-        )
 
-    
+        # Simply use the preprocess_image function with appropriate parameters
+        processed_image = await preprocess_image(
+            image_source=base64_string,
+            high_resolution=False,
+            apply_noise_filter=apply_filter
+        )
+        
+        # Get dimensions
+        height, width = processed_image.shape[:2]
+        
+        # Convert to base64 for response
+        base64_image = image_to_base64(processed_image)
+        
+        return {
+            "processed_image": base64_image,
+            "width": width,
+            "height": height,
+            "processing_time_ms": 0.0  # Placeholder
+        }
+
     async def optimize_for_mediapipe(
         self,
         image_source: Union[UploadFile, str, np.ndarray],
         high_resolution: bool = False
-    )  -> Dict[str, Any]:
-        """Process an image with optimizations for MediaPipe."""
-        # Load image
-        if hasattr(image_source, "read") and callable(getattr(image_source, "read")):
-            # This is likely a file-like object such as UploadFile
-            image = await load_image(image_source)
-        elif isinstance(image_source, str):
-            image = load_image_from_base64(image_source)
-        elif isinstance(image_source, np.ndarray):
-            image = image_source
-        else:
-            raise ValueError(f"Unsupported image source type: {type(image_source)}")
-        # Process for MediaPipe
-        start_time = cv2.getTickCount() 
+    ) -> Dict[str, Any]:
+        # Use the preprocess_image function with MediaPipe-specific settings
+        processed_image = await preprocess_image(
+            image_source=image_source,
+            high_resolution=high_resolution,
+            apply_noise_filter=True
+        )
         
-        # Resize based on resolution setting
-        if high_resolution:
-            image = resize_image(image, width=1280, height=720)
-        else:
-            image = resize_image(image, width=settings.IMAGE_WIDTH, height=settings.IMAGE_HEIGHT)
-
-        image = filter_noise(image, filter_type="median", kernel_size=3)
-         
-        image = normalize_colors(image)
-
-        image = enhance_for_pose_detection(image)
+        # Get dimensions
+        height, width = processed_image.shape[:2]
         
-        end_time = cv2.getTickCount()
-        processing_time_ms = (end_time - start_time) * 1000 / cv2.getTickFrequency()
-        
-        # Get final dimensions
-        height, width = image.shape[:2]
+        # Convert to base64 for response
+        base64_image = image_to_base64(processed_image)
         
         return {
-            "processed_image": image,
+            "processed_image": base64_image,
             "width": width,
             "height": height,
-            "processing_time_ms": processing_time_ms,
+            "high_resolution": high_resolution
         }

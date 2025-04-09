@@ -20,3 +20,12 @@ docker-compose.override.yml
 # OS files
 .DS_Store
 Thumbs.db
+
+# log files
+*.log
+*.out
+*.err
+*.pid
+
+logs
+*.log

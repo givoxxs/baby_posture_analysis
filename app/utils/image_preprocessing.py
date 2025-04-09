@@ -117,3 +117,44 @@ async def preprocess_image(
     image = enhance_for_pose_detection(image)
     
     return image
+
+from app.utils.image_helper import Image_Helper, Image_Rotation_Helper
+from app.utils.pose_scaler_helper import PoseScalerHelper
+import mediapipe as mp 
+from typing import Dict, Any, Union
+
+async def process_image_2(
+    image_source: Union[UploadFile, str, np.ndarray]
+):
+    mp_pose = mp.solutions.pose
+    with mp_pose.Pose(
+            static_image_mode=True,
+            model_complexity=2,
+            smooth_landmarks=True
+        ) as pose:
+        
+        if hasattr(image_source, "read") and callable(getattr(image_source, "read")):
+            image = await load_image(image_source)
+        elif isinstance(image_source, str):
+            image = load_image_from_base64(image_source)
+        elif isinstance(image_source, np.ndarray):
+            image = image_source
+        else:
+            raise ValueError(f"Unsupported image source type: {type(image_source)}")
+            
+        image_helper = Image_Helper()
+        image, new_size = image_helper.square_image(image)
+        
+        image = cv2.cvtColor(image, cv2.COLOR_BGR2RGB)
+        
+        # image = resize_image(image, width=1024, height=1024)
+        
+        image = filter_noise(image, filter_type='median', kernel_size=3)
+
+        image = normalize_colors(image)
+        
+        # image = enhance_for_pose_detection(image)
+        
+        return image
+    
+    

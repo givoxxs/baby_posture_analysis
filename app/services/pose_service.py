@@ -10,7 +10,7 @@ import traceback
 import time
 import logging
 
-from app.utils.image_preprocessing import preprocess_image, image_to_base64, load_image
+from app.utils.image_preprocessing import preprocess_image, image_to_base64, load_image, process_image_2
 from app.utils.keypoint_extraction import PoseDetector
 from app.utils.posture_features import  extract_posture_features_v3, analyze_risk_v3 #extract_posture_features, analyze_risk,
 
@@ -40,7 +40,12 @@ class PoseService:
         # preprocessed_image = await preprocess_image(
         #     image_source=file
         # )
-        preprocessed_image = await load_image(file)
+        
+        # preprocessed_image = await load_image(file)
+        
+        preprocessed_image = await process_image_2(
+            image_source=file
+        )
         
         # Detect pose
         keypoints_data, annotated_image = self.pose_detector.detect_pose(preprocessed_image)

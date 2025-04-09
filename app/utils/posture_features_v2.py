@@ -79,13 +79,9 @@ def detect_face_down_v2(keypoints: List[List[float]], visibility_threshold: floa
     nose = get_keypoint(keypoints, NOSE, visibility_threshold)
     print("NOSE:", nose)
     left_eye = get_keypoint(keypoints, LEFT_EYE, visibility_threshold)
-    print("LEFT_EYE:", left_eye)
     right_eye = get_keypoint(keypoints, RIGHT_EYE, visibility_threshold)
-    print("RIGHT_EYE:", right_eye)
     left_ear = get_keypoint(keypoints, LEFT_EAR, visibility_threshold)
-    print("LEFT_EAR:", left_ear)
     right_ear = get_keypoint(keypoints, RIGHT_EAR, visibility_threshold)
-    print("RIGHT_EAR:", right_ear)
     
     if nose is None:
         logger.info("Nose not visible, suspecting face down.")
@@ -103,33 +99,34 @@ def detect_face_down_v2(keypoints: List[List[float]], visibility_threshold: floa
         return True
     
     # So sánh Z của mũi với vai (nếu mũi có Z lớn hơn đáng kể -> úp)
-    print("So sánh Z của mũi với vai")
-    left_shoulder = get_keypoint(keypoints, LEFT_SHOULDER, 0.3) 
+    left_shoulder = get_keypoint(keypoints, LEFT_SHOULDER, 0.3) # Giảm ngưỡng cho vai
     right_shoulder = get_keypoint(keypoints, RIGHT_SHOULDER, 0.3)
 
     if nose and left_shoulder and right_shoulder:
         shoulder_z_avg = (left_shoulder[2] + right_shoulder[2]) / 2
         print("Shoulder Z avg:", shoulder_z_avg)
         nose_z = nose[2]
-        
-        z_diff_threshold = 0.05 # Ví dụ ngưỡng chênh lệch Z (cần điều chỉnh!)
+        # Ngưỡng Z diff (cần chuẩn hóa hoặc thử nghiệm) - Giả sử Z nhỏ hơn là gần camera hơn
+        # Nếu mũi xa hơn vai đáng kể -> có thể úp mặt
+        # Lưu ý: Hệ Z của MediaPipe có thể thay đổi, cần kiểm tra hướng
+        z_diff_threshold = 0.1 # Ví dụ ngưỡng chênh lệch Z (cần điều chỉnh!)
         if nose_z > shoulder_z_avg + z_diff_threshold:
-            logger.info(f"Nose Z ({nose_z:.2f}) significantly larger than avg shoulder Z ({shoulder_z_avg:.2f}), suspecting face down.")
-            print(f"Nose Z ({nose_z:.2f}) significantly larger than avg shoulder Z ({shoulder_z_avg:.2f}), suspecting face down.")
-            return True
-
+             logger.info(f"Nose Z ({nose_z:.2f}) significantly larger than avg shoulder Z ({shoulder_z_avg:.2f}), suspecting face down.")
+             print(f"Nose Z ({nose_z:.2f}) significantly larger than avg shoulder Z ({shoulder_z_avg:.2f}), suspecting face down.")
+             return True
+         
     return False
 
 def is_likely_covered(keypoints: List[List[float]], visibility_threshold: float = 0.4, min_invisible: int = 2) -> bool:
-    print("=======================")
-    print("is_likely_covered")
+    """
+    Check if the lower body is likely covered by a blanket.
+    Counts invisible keypoints in the lower body. Renamed from detect_blanket_kicked.
+    """
     lower_body_indices = [LEFT_HIP, RIGHT_HIP, LEFT_KNEE, RIGHT_KNEE, LEFT_ANKLE, RIGHT_ANKLE]
     invisible_count = 0
     visible_count = 0
     for idx in lower_body_indices:
         kp = get_keypoint(keypoints, idx, visibility_threshold)
-        print(f"Keypoint {idx}: {kp}")
-        print(f"Keypoint {idx} visibility: {kp[3] if kp else 'N/A'}")
         if kp is None:
             if not (0 <= idx < len(keypoints)):
                 invisible_count += 1
@@ -198,59 +195,52 @@ def check_side_lying_indicators(
     angle_threshold_min: float = 25.0,    # Ngưỡng góc tối thiểu (độ)
     angle_threshold_max: float = 155.0   # Ngưỡng góc tối đa (độ)
 ) -> Tuple[bool, bool, Optional[str]]:
-    print("=======================")
-    print("check_side_lying_indicators")
+    """
+    Checks indicators for side lying based on Z-difference and shoulder/hip line angles.
+    Returns: (is_likely_side, is_clearly_not_side, determined_side ["left"/"right"/None])
+    """
     ls = get_keypoint(keypoints, LEFT_SHOULDER, vis_threshold)
-    print("LEFT_SHOULDER:", ls)
-    print("LEFT_SHOULDER visibility:", ls[3] if ls else 'N/A')
     rs = get_keypoint(keypoints, RIGHT_SHOULDER, vis_threshold)
-    print("RIGHT_SHOULDER:", rs)
-    print("RIGHT_SHOULDER visibility:", rs[3] if rs else 'N/A')
     lh = get_keypoint(keypoints, LEFT_HIP, vis_threshold)
-    print("LEFT_HIP:", lh)
-    print("LEFT_HIP visibility:", lh[3] if lh else 'N/A')
     rh = get_keypoint(keypoints, RIGHT_HIP, vis_threshold)
-    print("RIGHT_HIP:", rh)
-    print("RIGHT_HIP visibility:", rh[3] if rh else 'N/A')
-    
-    if ls[2] * rs[2] < 0 and abs(ls[2] - rs[2]) > 0.15: # Nếu Z của vai trái và phải khác dấu -> nằm nghiêng
-        print("Shoulder Z difference:", ls[2], rs[2])
-        return True, False # Nằm nghiêng
-    
-    if lh[2] * rh[2] < 0 and abs(lh[2] - rh[2]) > 0.15: # Nếu Z của hông trái và phải khác dấu -> nằm  nghiêng
-        print("Hip Z difference:", lh[2], rh[2])
-        return True, False # Nằm nghiêng
     
     print("Shoulder:", ls, rs)
     print("Hip:", lh, rh)
+    
 
     if not (ls and rs and lh and rh):
-        print("Not enough keypoints to determine side lying.")
-        return False, False # Not enough info
+        return False, False, None # Not enough info
 
     # 1. Check Z-difference
-    # shoulder_width_xy = calculate_distance_xy(ls, rs) + 1e-6 # Epsilon for stability
-    # hip_width_xy = calculate_distance_xy(lh, rh) + 1e-6
-    # delta_z_shoulders = abs(ls[2] - rs[2])
-    # delta_z_hips = abs(lh[2] - rh[2])
-    # norm_delta_z_shoulders = delta_z_shoulders / shoulder_width_xy
-    # norm_delta_z_hips = delta_z_hips / hip_width_xy
-    # print('norm_delta_z_shoulders:', norm_delta_z_shoulders)
-    # print('norm_delta_z_hips:', norm_delta_z_hips)
-    # print('z_diff_ratio_threshold:', z_diff_ratio_threshold)
-    # is_z_diff_significant = norm_delta_z_shoulders > z_diff_ratio_threshold or \
-    #                         norm_delta_z_hips > z_diff_ratio_threshold
+    shoulder_width_xy = calculate_distance_xy(ls, rs) + 1e-6 # Epsilon for stability
+    hip_width_xy = calculate_distance_xy(lh, rh) + 1e-6
+    delta_z_shoulders = abs(ls[2] - rs[2])
+    delta_z_hips = abs(lh[2] - rh[2])
+    norm_delta_z_shoulders = delta_z_shoulders / shoulder_width_xy
+    norm_delta_z_hips = delta_z_hips / hip_width_xy
+    is_z_diff_significant = norm_delta_z_shoulders > z_diff_ratio_threshold or \
+                            norm_delta_z_hips > z_diff_ratio_threshold
     
-    # logger.debug(f"Side check Z: norm_dZ_sh={norm_delta_z_shoulders:.2f}, norm_dZ_hip={norm_delta_z_hips:.2f}, threshold={z_diff_ratio_threshold}")
-    # print(f"Side check Z: norm_dZ_sh={norm_delta_z_shoulders:.2f}, norm_dZ_hip={norm_delta_z_hips:.2f}, threshold={z_diff_ratio_threshold}")
-    
-    # if is_z_diff_significant:
-    #     print("Z difference significant, likely side lying.")
-    #     return True, False # Nằm nghiêng
-    
-    is_likely_side = False
-    is_clearly_not_side = False
+    logger.debug(f"Side check Z: norm_dZ_sh={norm_delta_z_shoulders:.2f}, norm_dZ_hip={norm_delta_z_hips:.2f}, threshold={z_diff_ratio_threshold}")
 
+    # 2. Check Shoulder/Hip line angles (Logic giữ nguyên)
+    vec_shoulders = calculate_vector_2d(ls, rs)
+    vec_hips = calculate_vector_2d(lh, rh)
+    vec_horizontal = [1.0, 0.0]
+    angle_shoulders = calculate_angle_2d(vec_shoulders, vec_horizontal)
+    angle_hips = calculate_angle_2d(vec_hips, vec_horizontal)
+    norm_angle_shoulders = min(angle_shoulders, 180.0 - angle_shoulders)
+    norm_angle_hips = min(angle_hips, 180.0 - angle_hips)
+    is_angle_significant = (norm_angle_shoulders > angle_threshold_min and norm_angle_shoulders < angle_threshold_max) or \
+                           (norm_angle_hips > angle_threshold_min and norm_angle_hips < angle_threshold_max)
+    # logger.debug(f"Side check Angle: norm_ang_sh={norm_angle_shoulders:.1f}, norm_ang_hip={norm_angle_hips:.1f}, threshold=({angle_threshold_min}, {angle_threshold_max})")
+
+
+    # 3. Determine flags (Bỏ bước xác định bên trái/phải)
+    is_clearly_not_side = not is_z_diff_significant and not is_angle_significant
+    is_likely_side = (is_z_diff_significant or is_angle_significant)
+
+    # logger.debug(f"Simplified Side check result: likely_side={is_likely_side}, clearly_not_side={is_clearly_not_side}")
     return is_likely_side, is_clearly_not_side
 
 
@@ -312,13 +302,13 @@ def extract_posture_features_v3(keypoints: List[List[float]], vis_threshold: flo
     arm_angles = features["arm_angles"]
     leg_angles = features["leg_angles"]
     # Check arms: angle is not None and is < 45 or > 190
-    if (arm_angles["left"] is not None and (arm_angles["left"] < 30 or arm_angles["left"] > 220)) or \
-       (arm_angles["right"] is not None and (arm_angles["right"] < 30 or arm_angles["right"] > 220)):
+    if (arm_angles["left"] is not None and (arm_angles["left"] < 45 or arm_angles["left"] > 190)) or \
+       (arm_angles["right"] is not None and (arm_angles["right"] < 45 or arm_angles["right"] > 190)):
         unnatural = True
     # Check legs: angle is not None and is < 45 or > 190
     if not unnatural: # Only check legs if arms are okay
-         if (leg_angles["left"] is not None and (leg_angles["left"] < 30 or leg_angles["left"] > 220)) or \
-            (leg_angles["right"] is not None and (leg_angles["right"] < 30 or leg_angles["right"] > 220)):
+         if (leg_angles["left"] is not None and (leg_angles["left"] < 45 or leg_angles["left"] > 190)) or \
+            (leg_angles["right"] is not None and (leg_angles["right"] < 45 or leg_angles["right"] > 190)):
              unnatural = True
     features["unnatural_limbs"] = unnatural
 

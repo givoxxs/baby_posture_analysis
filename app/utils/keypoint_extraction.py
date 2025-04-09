@@ -3,6 +3,8 @@ import cv2
 import mediapipe as mp
 from typing import Dict, List, Tuple, Any, Optional
 import time
+from app.utils.image_helper import Image_Helper, Image_Rotation_Helper
+from app.utils.pose_scaler_helper import PoseScalerHelper
 
 class PoseDetector:
     """Class for detecting human pose using MediaPipe."""
@@ -26,6 +28,27 @@ class PoseDetector:
             model_complexity=model_complexity,
             min_detection_confidence=min_detection_confidence
         )
+        self.IMPORTANT_LANDMARKS = [
+            "nose", # 0
+            "left_shoulder", # 11
+            "right_shoulder", # 12
+            "left_elbow", # 13
+            "right_elbow", # 14
+            "left_pinky", # 17
+            "right_pinky", # 18
+            "left_index", # 19
+            "right_index", # 20
+            "left_hip", # 23
+            "right_hip", # 24
+            "left_knee", # 25
+            "right_knee", # 26
+            "left_foot_index", # 31
+            "right_foot_index", # 32 
+        ]
+        
+        self.image_helper = Image_Helper()
+        self.image_rotation_helper = Image_Rotation_Helper()
+        self.pose_scaler_helper = PoseScalerHelper(self.IMPORTANT_LANDMARKS, self.mp_pose)
     
     def detect_pose(self, image: np.ndarray) -> Tuple[Optional[Dict[str, Any]], Optional[np.ndarray]]:
         """
@@ -57,7 +80,7 @@ class PoseDetector:
             return None, None
         
         # Extract and filter keypoints
-        keypoints_data = self._extract_keypoints(results, rgb_image.shape)
+        keypoints_data = self._extract_keypoints(results, rgb_image.shape, image)
         keypoints_data["processing_time_ms"] = processing_time
         
         # Create annotated image
@@ -65,7 +88,7 @@ class PoseDetector:
         
         return keypoints_data, annotated_image
     
-    def _extract_keypoints(self, results, image_shape) -> Dict[str, Any]:
+    def _extract_keypoints(self, results, image_shape, image: np.ndarray) -> Dict[str, Any]:
         """Extract keypoints from MediaPipe results."""
         keypoints = []
         h, w = image_shape[:2]
@@ -77,10 +100,17 @@ class PoseDetector:
             # Store x, y, z (depth), and visibility
             keypoints.append([landmark.x, landmark.y, landmark.z, landmark.visibility])
         
+        # keypoints_pose_landmarks, new_image, size = self.new_extract_keypoints(image) 
+        
+        # for landmark in keypoints_pose_landmarks.landmark:  
+        #     # Convert normalized coordinates to pixel values
+        #     x, y = int(landmark.x * size[0]), int(landmark.y * size[1])  # Fixed size[1] usage
+        #     keypoints.append([landmark.x, landmark.y, landmark.z, landmark.visibility])
+        
         return {
             "keypoints": keypoints,
-            "image_width": w,
-            "image_height": h
+            "image_width": w,      # Updated to use size[0]
+            "image_height": h      # Updated to use size[1]
         }
     
     def _draw_landmarks(self, image: np.ndarray, results) -> np.ndarray:
@@ -94,3 +124,29 @@ class PoseDetector:
         )
         
         return image
+    
+    def new_extract_keypoints(self, image: np.ndarray):
+         with self.mp_pose.Pose(
+            static_image_mode=True,
+            model_complexity=2,
+            smooth_landmarks=True
+        ) as pose:
+            image, new_size = self.image_helper.process_image(image)
+            
+            keypoints = pose.process(image) # => trả về keypoints
+            
+            if not keypoints.pose_landmarks:
+                raise Exception("No pose landmarks detected")
+            
+            image.flags.writeable = True # nhằm để có thể vẽ lên ảnh
+            
+            # khôi phục màu gốc của ảnh
+            image = cv2.cvtColor(image, cv2.COLOR_BGR2RGB)
+            
+            try:
+                keypoints.pose_landmarks = self.image_rotation_helper.rotate_image_baby(keypoints.pose_landmarks, origin_size=new_size)
+                
+            except Exception as e:
+                raise e
+        
+            return keypoints.pose_landmarks, image, new_size

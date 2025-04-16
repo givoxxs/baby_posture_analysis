@@ -29,3 +29,7 @@ Thumbs.db
 
 logs
 *.log
+
+data
+data_cleaned
+data_baby_posture

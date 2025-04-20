@@ -1,3 +1,4 @@
+# filepath: d:\GiaoPhan_Workspace\sem_6\pbl5\baby_posture_analysis\app\utils\pose_scaler_helper.py
 import pandas as pd # type: ignore
 import numpy as np
 import mediapipe as mp # type: ignore
@@ -11,10 +12,13 @@ class PoseScalerHelper:
         columns_name = [] + [f"{landmark}_{axis}" for landmark in self.IMPORTANT_LANDMARKS for axis in ["x", "y", "z"]]
         columns_values = []
         
+        # Tạo flatten list để chứa tất cả các giá trị x, y, z liên tiếp
         for id, landmark in enumerate(keypoints):
             if self.mp_pose.PoseLandmark(id).name.lower() in self.IMPORTANT_LANDMARKS:
-                columns_values.append([landmark.x, landmark.y, landmark.z])
+                # Thêm từng giá trị x, y, z riêng biệt
+                columns_values.extend([landmark.x, landmark.y, landmark.z])
                 
+        # Tạo DataFrame với đúng số lượng cột và giá trị
         df_keypoints = pd.DataFrame([columns_values], columns=columns_name)
         
         center = self.find_center_of_babay(df_keypoints)
@@ -74,4 +78,3 @@ class PoseScalerHelper:
             df_keypoints[f"{l}_y"] *= scale_value
         
         return df_keypoints
-    

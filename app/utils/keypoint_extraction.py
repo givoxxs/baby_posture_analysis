@@ -10,7 +10,7 @@ class PoseDetector:
     """Class for detecting human pose using MediaPipe."""
     
     def __init__(self, static_image_mode: bool = True, model_complexity: int = 2, 
-                 min_detection_confidence: float = 0.5):
+                 min_detection_confidence: float = 0.2):
         """
         Initialize the MediaPipe pose detection model.
         

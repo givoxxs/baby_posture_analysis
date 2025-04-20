@@ -36,6 +36,7 @@ async def analyze_image(
                 "success": True,
                 "posture": {
                     "position": result['analysis']["position"],
+                    "face_down": result['analysis']["face_down"],
                     "is_covered": result['analysis']["is_covered"],
                     "risk_level": result['analysis']["risk_level"],
                     "unnatural_limbs": result['analysis']["unnatural_limbs"],

@@ -57,6 +57,40 @@
         .risk-unknown { color: #6c757d; font-weight: bold; } /* Grey for Unknown/Error */
         .risk-error { color: #dc3545; font-weight: bold; } /* Red for Error */
 
+        /* Safety alert styling */
+        .safety-danger {
+            background-color: #f8d7da;
+            color: #842029;
+            padding: 10px;
+            border-radius: 5px;
+            margin-bottom: 10px;
+            border-left: 5px solid #dc3545;
+        }
+        .safety-warning {
+            background-color: #fff3cd;
+            color: #664d03;
+            padding: 10px;
+            border-radius: 5px;
+            margin-bottom: 10px;
+            border-left: 5px solid #ffc107;
+        }
+        #videoResultsContainer .timeline-item {
+            padding: 10px;
+            margin-bottom: 5px;
+            border-left: 3px solid #ccc;
+        }
+        #videoResultsContainer .timeline-item.alert-item {
+            border-left: 3px solid #dc3545;
+            background-color: rgba(255, 0, 0, 0.05);
+        }
+        .video-frame-preview {
+            max-width: 150px;
+            cursor: pointer;
+            border: 2px solid transparent;
+        }
+        .video-frame-preview.active {
+            border-color: #0d6efd;
+        }
     </style>
 </head>
 <body>
@@ -81,6 +115,7 @@
         </ul>
 
         <div class="tab-content" id="myTabContent">
+            <!-- IMAGE PROCESSING TAB -->
             <div class="tab-pane fade show active" id="image" role="tabpanel" aria-labelledby="image-tab">
                 <div class="row mt-4">
                     <div class="col-md-4">
@@ -101,11 +136,11 @@
                                 </form>
 
                                 <div class="text-center mt-3">
-                                    <div class="spinner-border text-primary loading-spinner" role="status">
+                                    <div class="spinner-border text-primary loading-spinner" role="status" id="imageLoadingSpinner">
                                         <span class="visually-hidden">Loading...</span>
                                     </div>
                                 </div>
-                                <div id="alertMessage" class="alert mt-3" role="alert" style="display: none;"></div>
+                                <div id="imageAlertMessage" class="alert mt-3" role="alert" style="display: none;"></div>
                             </div>
                         </div>
                     </div>
@@ -141,15 +176,11 @@
 
                                     <div class="row">
                                         <div class="col-md-6">
-                                            <div class="card bg-light">
-                                                <div class="card-body">
+                                            <div class="card bg-light">                                                <div class="card-body">
                                                     <h5 class="card-title">Posture Classification</h5>
                                                     <p><strong>Position:</strong> <span id="posturePosition">Unknown</span></p>
-                                                    <p><strong>Risk Level:</strong> <span id="riskLevel" class="risk-unknown">Unknown</span></p>
-                                                    <p><strong>Risk Score:</strong> <span id="riskScore">0/10</span></p>
-                                                    <p><strong>Confidence:</strong> <span id="confidence">0%</span></p>
-                                                    <p><strong>Covered:</strong> <span id="isCovered">N/A</span></p>
-                                                    <p><strong>Unnatural Limbs:</strong> <span id="unnaturalLimbs">N/A</span></p>
+                                                    <p><strong>Blanket:</strong> <span id="hasBlanket">No</span></p>
+                                                    <p><strong>Timestamp:</strong> <span id="imageTimestamp">N/A</span></p>
                                                 </div>
                                             </div>
                                         </div>
@@ -157,23 +188,12 @@
                                         <div class="col-md-6">
                                             <div class="card bg-light">
                                                 <div class="card-body">
-                                                    <h5 class="card-title">Analysis Details (Reasons)</h5>
-                                                    <div id="reasonsList">
-                                                        <ul class="mb-0"><li>No reasons available.</li></ul>
+                                                    <h5 class="card-title">Posture Probabilities</h5>
+                                                    <div id="postureProbabilities">
+                                                        <p><strong>Nằm ngửa:</strong> <span id="probBack">0%</span></p>
+                                                        <p><strong>Nằm nghiêng:</strong> <span id="probSide">0%</span></p>
+                                                        <p><strong>Nằm sấp:</strong> <span id="probProne">0%</span></p>
                                                     </div>
-                                                </div>
-                                            </div>
-                                        </div>
-                                    </div>
-
-                                    <div class="row mt-3">
-                                        <div class="col-12">
-                                            <div class="card">
-                                                <div class="card-header">Recommendations</div>
-                                                <div class="card-body">
-                                                    <ul id="recommendationsList" class="mb-0">
-                                                        <li>No recommendations available.</li>
-                                                    </ul>
                                                 </div>
                                             </div>
                                         </div>
@@ -185,21 +205,78 @@
                 </div>
             </div>
 
+            <!-- VIDEO PROCESSING TAB -->
             <div class="tab-pane fade" id="video" role="tabpanel" aria-labelledby="video-tab">
                 <div class="row mt-4">
-                    <div class="col-md-12">
+                    <div class="col-md-4">
                         <div class="card">
-                            <div class="card-header">Video Upload</div>
+                            <div class="card-header">Video Upload & Control</div>
                             <div class="card-body">
-                                <p>Video posture analysis is under development. Please use image analysis for now.</p>
-                                <form id="videoForm">
+                                <form id="videoUploadForm" enctype="multipart/form-data">
                                     <div class="mb-3">
                                         <label for="videoUpload" class="form-label">Select Video</label>
                                         <input type="file" class="form-control" id="videoUpload" name="file"
-                                               accept="video/*" required disabled>
+                                               accept="video/*" required>
+                                        <div class="form-text">Supported formats: MP4, AVI, MOV</div>
                                     </div>
-                                    <button type="submit" class="btn btn-primary" disabled>Process Video</button>
+
+                                    <div class="d-grid gap-2 mb-3">
+                                         <button type="button" id="analyzeVideoBtn" class="btn btn-primary">Upload & Analyze Video</button>
+                                    </div>
                                 </form>
+
+                                <div class="text-center mt-3">
+                                    <div class="spinner-border text-primary loading-spinner" role="status" id="videoLoadingSpinner">
+                                        <span class="visually-hidden">Loading...</span>
+                                    </div>
+                                </div>
+                                <div id="videoAlertMessage" class="alert mt-3" role="alert" style="display: none;"></div>
+                            </div>
+                        </div>
+
+                        <div class="card mt-3">
+                            <div class="card-header">Video Information</div>
+                            <div class="card-body">
+                                <div id="videoInfoContainer">
+                                    <p><strong>Duration:</strong> <span id="videoDuration">N/A</span></p>
+                                    <p><strong>Frames Processed:</strong> <span id="framesProcessed">0</span></p>
+                                    <p><strong>Processing Time:</strong> <span id="videoProcessingTime">0s</span></p>
+                                </div>
+                            </div>
+                        </div>
+                    </div>
+
+                    <div class="col-md-8">
+                        <div class="card">
+                            <div class="card-header">Safety Alerts</div>
+                            <div class="card-body">
+                                <div id="safetyAlertsContainer">
+                                    <p class="text-muted text-center" id="noAlertsMessage">No alerts yet. Upload a video for analysis.</p>
+                                    <div id="alertsList"></div>
+                                </div>
+                            </div>
+                        </div>
+
+                        <div class="card mt-3">
+                            <div class="card-header">Video Analysis</div>
+                            <div class="card-body">
+                                <div id="videoResultsContainer">
+                                    <div class="text-muted text-center" id="noVideoResultsMessage">No video analyzed yet. Upload a video for analysis.</div>
+                                    
+                                    <div id="videoFramePreview" class="text-center mb-3" style="display: none;">
+                                        <h5>Current Frame Preview</h5>
+                                        <img id="currentFrameImage" src="" alt="Current frame" class="img-fluid mb-2" style="max-height: 300px;">                                        <div id="frameDetails" class="text-start">
+                                            <p><strong>Position:</strong> <span id="framePosition">Unknown</span></p>
+                                            <p><strong>Blanket:</strong> <span id="frameBlanket">No</span></p>
+                                            <p><strong>Timestamp:</strong> <span id="frameTimestamp">N/A</span></p>
+                                        </div>
+                                    </div>
+                                    
+                                    <div id="framesTimeline" style="display: none;">
+                                        <h5>Analysis Timeline</h5>
+                                        <div id="framesList" class="mt-3"></div>
+                                    </div>
+                                </div>
                             </div>
                         </div>
                     </div>
@@ -211,245 +288,293 @@
     <script src="https://cdn.jsdelivr.net/npm/bootstrap@5.3.0-alpha1/dist/js/bootstrap.bundle.min.js"></script>
     <script>
         document.addEventListener('DOMContentLoaded', function() {
-            // Get DOM elements
-            const imageUpload = document.getElementById('imageUpload');
-            const originalImage = document.getElementById('originalImage');
-            const annotatedImage = document.getElementById('annotatedImage');
-            const noOriginalMsg = document.getElementById('noOriginalMsg');
-            const noAnnotatedMsg = document.getElementById('noAnnotatedMsg');
+            // Elements for image processing tab
+            const imageUploadForm = document.getElementById('uploadForm');
+            const imageUploadInput = document.getElementById('imageUpload');
             const analyzeBtn = document.getElementById('analyzeBtn');
-            const loadingSpinner = document.querySelector('.loading-spinner');
-            const alertMessage = document.getElementById('alertMessage');
+            const imageLoadingSpinner = document.getElementById('imageLoadingSpinner');
+            const imageAlertMessage = document.getElementById('imageAlertMessage');
+            const originalImage = document.getElementById('originalImage');
+            const noOriginalMsg = document.getElementById('noOriginalMsg');
+            const annotatedImage = document.getElementById('annotatedImage');
+            const noAnnotatedMsg = document.getElementById('noAnnotatedMsg');
             const postureResultsContainer = document.getElementById('postureResultsContainer');
+            
+            // Elements for video processing tab
+            const videoUploadForm = document.getElementById('videoUploadForm');
+            const videoUploadInput = document.getElementById('videoUpload');
+            const analyzeVideoBtn = document.getElementById('analyzeVideoBtn');
+            const videoLoadingSpinner = document.getElementById('videoLoadingSpinner');
+            const videoAlertMessage = document.getElementById('videoAlertMessage');
+            const videoInfoContainer = document.getElementById('videoInfoContainer');
+            const safetyAlertsContainer = document.getElementById('safetyAlertsContainer');
+            const noAlertsMessage = document.getElementById('noAlertsMessage');
+            const alertsList = document.getElementById('alertsList');
+            const videoResultsContainer = document.getElementById('videoResultsContainer');
+            const noVideoResultsMessage = document.getElementById('noVideoResultsMessage');
+            const videoFramePreview = document.getElementById('videoFramePreview');
+            const framesTimeline = document.getElementById('framesTimeline');
+            const framesList = document.getElementById('framesList');
 
-            // Function to display alerts
-            function showAlert(message, type = 'danger') {
-                alertMessage.textContent = message;
-                alertMessage.className = `alert alert-${type}`; // Reset classes
-                alertMessage.style.display = 'block';
-            }
-
-            // Function to hide alerts
-            function hideAlert() {
-                alertMessage.style.display = 'none';
-            }
-
-             // Function to reset results display
-            function resetResultsDisplay() {
-                postureResultsContainer.style.display = 'none';
-                annotatedImage.style.display = 'none';
-                annotatedImage.src = '';
-                noAnnotatedMsg.style.display = 'block';
-                // Reset text content for results
-                document.getElementById('posturePosition').textContent = 'Unknown';
-                document.getElementById('riskLevel').textContent = 'Unknown';
-                document.getElementById('riskLevel').className = 'risk-unknown';
-                document.getElementById('riskScore').textContent = '0/10';
-                document.getElementById('confidence').textContent = '0%';
-                document.getElementById('isCovered').textContent = 'N/A';
-                document.getElementById('unnaturalLimbs').textContent = 'N/A';
-                document.getElementById('reasonsList').innerHTML = '<ul class="mb-0"><li>No reasons available.</li></ul>';
-                document.getElementById('recommendationsList').innerHTML = '<li>No recommendations available.</li>';
-            }
-
-            // File input change handler
-            imageUpload.addEventListener('change', function(event) {
-                hideAlert(); // Hide any previous alerts
-                resetResultsDisplay(); // Reset previous results
-                const file = event.target.files[0];
-
-                if (!file) {
-                    originalImage.style.display = 'none';
-                    noOriginalMsg.style.display = 'block';
-                    analyzeBtn.disabled = true; // Disable button if no file
-                    return;
+            // Handle image upload and analysis
+            imageUploadInput.addEventListener('change', function() {
+                if (this.files && this.files[0]) {
+                    let reader = new FileReader();
+                    reader.onload = function(e) {
+                        originalImage.src = e.target.result;
+                        originalImage.style.display = 'block';
+                        noOriginalMsg.style.display = 'none';
+                        // Reset annotated image
+                        annotatedImage.style.display = 'none';
+                        noAnnotatedMsg.style.display = 'block';
+                        // Reset results
+                        postureResultsContainer.style.display = 'none';
+                    };
+                    reader.readAsDataURL(this.files[0]);
                 }
-
-                // Validate file type
-                if (!file.type.startsWith('image/')) {
-                    showAlert('Please select an image file (JPG, JPEG, or PNG)');
-                    this.value = ''; // Clear the input
-                    originalImage.style.display = 'none';
-                    noOriginalMsg.style.display = 'block';
-                    analyzeBtn.disabled = true;
-                    return;
-                }
-
-                const reader = new FileReader();
-                reader.onload = function(e) {
-                    originalImage.src = e.target.result;
-                    originalImage.style.display = 'block';
-                    noOriginalMsg.style.display = 'none';
-                    analyzeBtn.disabled = false; // Enable button once image is loaded
-                };
-                reader.readAsDataURL(file);
             });
 
-            // Analyze button click handler (Combined Upload & Analysis)
-            analyzeBtn.addEventListener('click', async function() {
-                hideAlert(); // Hide previous alerts
-                resetResultsDisplay(); // Reset previous results
-
-                const fileInput = document.getElementById('imageUpload');
-                if (!fileInput.files.length) {
-                    showAlert('Please select an image first!');
+            analyzeBtn.addEventListener('click', function() {
+                if (!imageUploadInput.files || !imageUploadInput.files[0]) {
+                    showAlert(imageAlertMessage, 'Please select an image to analyze', 'danger');
                     return;
                 }
-                const file = fileInput.files[0];
 
-                // Show loading spinner and disable button
-                loadingSpinner.style.display = 'inline-block';
-                analyzeBtn.disabled = true;
-
-                // Create form data
                 const formData = new FormData();
-                formData.append('file', file);
+                formData.append('file', imageUploadInput.files[0]);
 
-                try {
-                    // Call the pipeline endpoint directly
-                    const response = await fetch('/api/pose/analyze', {
-                        method: 'POST',
-                        body: formData
-                    });
+                // Show loading spinner
+                imageLoadingSpinner.style.display = 'inline-block';
+                imageAlertMessage.style.display = 'none';
+                postureResultsContainer.style.display = 'none';
 
-                    // --- Error Handling ---
-                    if (!response.ok) {
-                         let errorDetail = `Server error: ${response.status}`;
-                         try {
-                             // Try to parse error message from backend if available
-                             const errorData = await response.json();
-                             if (errorData.detail) {
-                                 errorDetail = `Error: ${errorData.detail}`;
-                             }
-                         } catch (e) {
-                             // Ignore if error response is not JSON
-                         }
-                         throw new Error(errorDetail);
+                // Make API request
+                fetch('/api/analyze/posture', {
+                    method: 'POST',
+                    body: formData
+                })
+                .then(response => response.json())
+                .then(data => {
+                    imageLoadingSpinner.style.display = 'none';
+                    
+                    if (!data.success) {
+                        showAlert(imageAlertMessage, data.message || 'Error analyzing image', 'danger');
+                        return;
                     }
-
-                    // --- Process Successful Response ---
-                    const data = await response.json();
-
-                     if (data.success === false) {
-                        // Handle cases where backend returns success: false with a message
-                        throw new Error(data.message || "Analysis failed for an unknown reason.");
-                    }
-
-                    // Display posture results
-                    displayPostureResults(data); // Pass the whole data object
-
-                } catch (error) {
-                    console.error("Analysis Error:", error); // Log detailed error to console
-                    showAlert(error.message || 'An unexpected error occurred during analysis.');
-                    // Reset displays on error
-                    resetResultsDisplay();
-                    annotatedImage.style.display = 'none';
-                    noAnnotatedMsg.style.display = 'block';
-
-                } finally {
-                    // Hide loading spinner and re-enable button (if a file is still selected)
-                    loadingSpinner.style.display = 'none';
-                     analyzeBtn.disabled = !fileInput.files.length; // Re-enable only if file is selected
-                }
-            });
-
-            // Display posture results function (UPDATED)
-            function displayPostureResults(data) {
-                // Show results container
-                postureResultsContainer.style.display = 'block';
-
-                 // Check if data structure is valid
-                if (!data || !data.posture || !data.image) {
-                    console.error("Invalid data structure received:", data);
-                    showAlert("Received invalid data structure from server.");
-                    resetResultsDisplay();
-                    return;
-                }
-
-                const posture = data.posture;
-                const imageInfo = data.image;
-
-
-                // Position
-                document.getElementById('posturePosition').textContent = posture.position || 'N/A';
-
-                // Risk Level and Styling
-                const riskLevelSpan = document.getElementById('riskLevel');
-                const riskLevel = posture.risk_level || 'Unknown'; // Default to Unknown
-                riskLevelSpan.textContent = riskLevel;
-                // Apply class based on risk level (adjust class names if needed)
-                riskLevelSpan.className = `risk-${riskLevel.toLowerCase()}`;
-
-                // Risk score
-                const riskScore = document.getElementById('riskScore');
-                 // Use 0 if risk_score is null or undefined
-                riskScore.textContent = `${(posture.risk_score ?? 0).toFixed(1)}/10`;
-
-
-                // Confidence
-                // Use 0 if confidence is null or undefined
-                document.getElementById('confidence').textContent = `${(posture.confidence ?? 0).toFixed(1)}%`;
-
-                // Is Covered
-                const isCoveredSpan = document.getElementById('isCovered');
-                if (posture.is_covered === true) {
-                    isCoveredSpan.textContent = 'Yes';
-                    isCoveredSpan.className = 'text-warning'; // Example styling
-                } else if (posture.is_covered === false) {
-                    isCoveredSpan.textContent = 'No';
-                     isCoveredSpan.className = 'text-success';
-                } else {
-                    isCoveredSpan.textContent = 'N/A'; // Handle null case
-                    isCoveredSpan.className = '';
-                }
-
-                 // Unnatural Limbs
-                const unnaturalLimbsSpan = document.getElementById('unnaturalLimbs');
-                 if (posture.unnatural_limbs === true) {
-                    unnaturalLimbsSpan.textContent = 'Yes';
-                    unnaturalLimbsSpan.className = 'text-warning'; // Example styling
-                } else if (posture.unnatural_limbs === false) {
-                    unnaturalLimbsSpan.textContent = 'No';
-                     unnaturalLimbsSpan.className = 'text-success';
-                } else {
-                    unnaturalLimbsSpan.textContent = 'N/A'; // Handle null case
-                    unnaturalLimbsSpan.className = '';
-                }
-
-
-                // Reasons
-                const reasonsList = document.getElementById('reasonsList');
-                reasonsList.innerHTML = '<ul class="mb-0">'; // Start with ul tag
-                if (posture.reasons && posture.reasons.length > 0) {
-                    posture.reasons.forEach(reason => {
-                        reasonsList.innerHTML += `<li>${reason}</li>`;
-                    });
-                } else {
-                    reasonsList.innerHTML += '<li>No specific reasons identified.</li>';
-                }
-                 reasonsList.innerHTML += '</ul>'; // Close ul tag
-
-                // Recommendations
-                const recommendationsList = document.getElementById('recommendationsList');
-                recommendationsList.innerHTML = ''; // Clear previous recommendations
-                if (posture.recommendations && posture.recommendations.length > 0) {
-                    posture.recommendations.forEach(recommendation => {
-                        recommendationsList.innerHTML += `<li>${recommendation}</li>`;
-                    });
-                } else {
-                    recommendationsList.innerHTML = '<li>No specific recommendations available.</li>';
-                }
-
-                // Annotated image
-                if (imageInfo.annotated) {
-                    annotatedImage.src = imageInfo.annotated; // Access nested field
+                    
+                    // Display annotated image
+                    annotatedImage.src = 'data:image/jpeg;base64,' + data.image.annotated;
                     annotatedImage.style.display = 'block';
                     noAnnotatedMsg.style.display = 'none';
-                } else {
-                     annotatedImage.style.display = 'none';
-                     noAnnotatedMsg.style.display = 'block';
-                     noAnnotatedMsg.textContent = 'Annotated image not available.';
+                      // Display results
+                    document.getElementById('posturePosition').textContent = data.posture.position;
+                    document.getElementById('hasBlanket').textContent = data.blanket.is_covered ? 'Yes' : 'No';
+                    document.getElementById('imageTimestamp').textContent = data.timestamp;
+                    
+                    // Display probabilities
+                    const probabilities = data.posture.probabilities;
+                    document.getElementById('probBack').textContent = (probabilities['Nằm ngửa'] * 100).toFixed(1) + '%';
+                    document.getElementById('probSide').textContent = (probabilities['Nằm nghiêng'] * 100).toFixed(1) + '%';
+                    document.getElementById('probProne').textContent = (probabilities['Nằm sấp'] * 100).toFixed(1) + '%';
+                    
+                    // Show results container
+                    postureResultsContainer.style.display = 'block';
+                })
+                .catch(error => {
+                    imageLoadingSpinner.style.display = 'none';
+                    showAlert(imageAlertMessage, 'Error: ' + error.message, 'danger');
+                });
+            });
+
+            // Handle video upload and analysis
+            analyzeVideoBtn.addEventListener('click', function() {
+                if (!videoUploadInput.files || !videoUploadInput.files[0]) {
+                    showAlert(videoAlertMessage, 'Please select a video to analyze', 'danger');
+                    return;
                 }
+
+                const formData = new FormData();
+                formData.append('file', videoUploadInput.files[0]);
+
+                // Show loading spinner
+                videoLoadingSpinner.style.display = 'inline-block';
+                videoAlertMessage.style.display = 'none';
+                noAlertsMessage.style.display = 'block';
+                alertsList.innerHTML = '';
+                noVideoResultsMessage.style.display = 'block';
+                videoFramePreview.style.display = 'none';
+                framesTimeline.style.display = 'none';
+
+                // Make API request
+                fetch('/api/analyze/video', {
+                    method: 'POST',
+                    body: formData
+                })
+                .then(response => response.json())
+                .then(data => {
+                    videoLoadingSpinner.style.display = 'none';
+                    
+                    if (!data.success) {
+                        showAlert(videoAlertMessage, data.message || 'Error analyzing video', 'danger');
+                        return;
+                    }
+                    
+                    // Update video info
+                    document.getElementById('videoDuration').textContent = data.video_info.duration_seconds.toFixed(1) + ' seconds';
+                    document.getElementById('framesProcessed').textContent = data.video_info.processed_frames;
+                    document.getElementById('videoProcessingTime').textContent = data.processing_time_ms ? (data.processing_time_ms / 1000).toFixed(1) + 's' : 'N/A';
+                    
+                    // Display safety alerts if any
+                    if (data.safety_alerts && data.safety_alerts.length > 0) {
+                        noAlertsMessage.style.display = 'none';
+                        
+                        // Clear existing alerts
+                        alertsList.innerHTML = '';
+                        
+                        // Add each alert
+                        data.safety_alerts.forEach(alert => {
+                            const alertDiv = document.createElement('div');
+                            
+                            // Get first alert entry
+                            const alertTypes = Object.keys(alert.alerts);
+                            if (alertTypes.length > 0) {
+                                const firstAlert = alert.alerts[alertTypes[0]];
+                                const isCritical = firstAlert.level === 'danger';
+                                
+                                alertDiv.className = isCritical ? 'safety-danger mb-3' : 'safety-warning mb-3';
+                                alertDiv.innerHTML = `
+                                    <div class="d-flex justify-content-between align-items-center">
+                                        <div>
+                                            <h5>${firstAlert.message}</h5>
+                                            <p class="mb-0">Time: ${formatSeconds(alert.frame_index)} (Frame ${alert.frame_index})</p>
+                                        </div>
+                                        <div>
+                                            <button class="btn btn-sm ${isCritical ? 'btn-danger' : 'btn-warning'}" 
+                                                    data-frame-index="${alert.frame_index}">
+                                                View Frame
+                                            </button>
+                                        </div>
+                                    </div>
+                                `;
+                                
+                                // Add click handler for the button
+                                alertDiv.querySelector('button').addEventListener('click', function() {
+                                    const frameIndex = parseInt(this.dataset.frameIndex);
+                                    showFrameDetails(data.frames.find(f => f.frame_index === frameIndex));
+                                });
+                                
+                                alertsList.appendChild(alertDiv);
+                            }
+                        });
+                    } else {
+                        noAlertsMessage.textContent = 'No safety alerts detected in the video.';
+                        noAlertsMessage.style.display = 'block';
+                    }
+                    
+                    // Display frames timeline
+                    if (data.frames && data.frames.length > 0) {
+                        noVideoResultsMessage.style.display = 'none';
+                        framesTimeline.style.display = 'block';
+                        
+                        // Clear existing timeline
+                        framesList.innerHTML = '';
+                        
+                        // Create timeline entries
+                        data.frames.forEach((frame, index) => {
+                            // Only display a subset of frames to avoid overwhelming the UI
+                            if (index % 5 === 0 || frame.safety_alerts && Object.keys(frame.safety_alerts).length > 0) {
+                                const frameItem = document.createElement('div');
+                                const hasAlert = frame.safety_alerts && Object.keys(frame.safety_alerts).length > 0;
+                                
+                                frameItem.className = 'timeline-item ' + (hasAlert ? 'alert-item' : '');
+                                
+                                // Determine position class
+                                let positionClass = '';
+                                if (frame.analysis.position_id === 2) { // Prone
+                                    positionClass = 'text-danger fw-bold';
+                                } else if (frame.analysis.position_id === 1) { // Side
+                                    positionClass = 'text-warning';
+                                }
+                                  frameItem.innerHTML = `
+                                    <div class="row">
+                                        <div class="col-md-3">
+                                            <strong>${formatSeconds(frame.frame_index)}</strong>
+                                        </div>
+                                        <div class="col-md-5">
+                                            <span class="${positionClass}">${frame.analysis.position}</span>
+                                        </div>
+                                        <div class="col-md-4">
+                                            <button class="btn btn-sm btn-outline-primary view-frame-btn" 
+                                                    data-frame-index="${frame.frame_index}">
+                                                View
+                                            </button>
+                                        </div>
+                                    </div>
+                                `;
+                                
+                                framesList.appendChild(frameItem);
+                            }
+                        });
+                        
+                        // Add event listeners to all view frame buttons
+                        document.querySelectorAll('.view-frame-btn').forEach(btn => {
+                            btn.addEventListener('click', function() {
+                                const frameIndex = parseInt(this.dataset.frameIndex);
+                                showFrameDetails(data.frames.find(f => f.frame_index === frameIndex));
+                            });
+                        });
+                        
+                        // Show the first frame by default
+                        showFrameDetails(data.frames[0]);
+                    }
+                })
+                .catch(error => {
+                    videoLoadingSpinner.style.display = 'none';
+                    showAlert(videoAlertMessage, 'Error: ' + error.message, 'danger');
+                });
+            });            // Helper function to show a frame's details
+            function showFrameDetails(frame) {
+                if (!frame) return;
+                
+                const currentFrameImage = document.getElementById('currentFrameImage');
+                const analysis = frame.analysis;
+                
+                // Show frame image if available (you'll need to add this to your API response)
+                if (analysis && analysis.annotated_image) {
+                    currentFrameImage.src = 'data:image/jpeg;base64,' + analysis.annotated_image;
+                    currentFrameImage.style.display = 'block';
+                } else {
+                    currentFrameImage.style.display = 'none';
+                }
+                
+                // Update frame details
+                document.getElementById('framePosition').textContent = analysis ? analysis.position : 'Unknown';
+                document.getElementById('frameBlanket').textContent = analysis && analysis.is_covered ? 'Yes' : 'No';
+                document.getElementById('frameTimestamp').textContent = frame.timestamp || 'N/A';
+                
+                // Apply styling for prone position
+                if (analysis && analysis.position_id === 2) { // Prone position
+                    document.getElementById('framePosition').classList.add('text-danger', 'fw-bold');
+                } else {
+                    document.getElementById('framePosition').classList.remove('text-danger', 'fw-bold');
+                }
+                
+                // Show the frame preview section
+                videoFramePreview.style.display = 'block';
+            }
+
+            // Helper function to show alert message
+            function showAlert(element, message, type) {
+                element.textContent = message;
+                element.className = `alert alert-${type} mt-3`;
+                element.style.display = 'block';
+            }
+            
+            // Helper function to format seconds
+            function formatSeconds(seconds) {
+                const mins = Math.floor(seconds / 60);
+                const secs = Math.floor(seconds % 60);
+                return `${mins.toString().padStart(2, '0')}:${secs.toString().padStart(2, '0')}`;
             }
         });
     </script>

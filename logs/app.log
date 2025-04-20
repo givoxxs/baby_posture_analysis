@@ -1,27 +1,72 @@
-2025-03-30 19:01:02,147 - app.main - INFO - Logging configured successfully
-2025-03-30 19:01:02,148 - app.main - INFO - CORS configured with origins: ['http://localhost:3000', 'http://localhost:8080']
-2025-03-30 19:01:05,550 - app.main - INFO - API routes registered successfully
-2025-03-30 19:01:05,550 - app.main - INFO - Templates configured from templates
-2025-03-30 19:01:05,551 - app.main - INFO - Static files mounted from static
-2025-03-30 19:10:34,437 - app.main - INFO - Logging configured successfully
-2025-03-30 19:10:34,441 - app.main - INFO - CORS configured with origins: ['http://localhost:3000', 'http://localhost:8080']
-2025-03-30 19:10:36,068 - app.main - INFO - API routes registered successfully
-2025-03-30 19:10:36,068 - app.main - INFO - Templates configured from templates
-2025-03-30 19:10:36,069 - app.main - INFO - Static files mounted from static
-2025-03-30 19:10:37,487 - app.main - INFO - Logging configured successfully
-2025-03-30 19:10:37,489 - app.main - INFO - CORS configured with origins: ['http://localhost:3000', 'http://localhost:8080']
-2025-03-30 19:10:38,938 - app.main - INFO - API routes registered successfully
-2025-03-30 19:10:38,939 - app.main - INFO - Templates configured from templates
-2025-03-30 19:10:38,939 - app.main - INFO - Static files mounted from static
-2025-03-30 19:15:37,751 - app.main - INFO - Logging configured successfully
-2025-03-30 19:15:37,751 - app.main - INFO - CORS configured with origins: ['http://localhost:3000', 'http://localhost:8080']
-2025-03-30 19:15:39,106 - app.main - INFO - API routes registered successfully
-2025-03-30 19:15:39,106 - app.main - INFO - Templates configured from templates
-2025-03-30 19:15:39,106 - app.main - INFO - Static files mounted from static
-2025-03-30 19:38:25,435 - app.main - INFO - Logging configured successfully
-2025-03-30 19:38:25,436 - app.main - INFO - CORS configured with origins: ['http://localhost:3000', 'http://localhost:8080']
-2025-03-30 19:39:29,242 - app.main - INFO - Logging configured successfully
-2025-03-30 19:39:29,243 - app.main - INFO - CORS configured with origins: ['http://localhost:3000', 'http://localhost:8080']
-2025-03-30 19:39:30,546 - app.main - INFO - API routes registered successfully
-2025-03-30 19:39:30,546 - app.main - INFO - Templates configured from templates
-2025-03-30 19:39:30,546 - app.main - INFO - Static files mounted from static
+2025-04-20 07:35:07,096 - app.main - INFO - Logging configured successfully
+2025-04-20 07:35:07,110 - app.main - INFO - API routes registered successfully
+2025-04-20 07:35:38,986 - app.main - INFO - Logging configured successfully
+2025-04-20 07:35:38,995 - app.main - INFO - API routes registered successfully
+2025-04-20 07:35:56,103 - app.main - INFO - Logging configured successfully
+2025-04-20 07:35:56,116 - app.main - INFO - API routes registered successfully
+2025-04-20 07:35:58,552 - app.main - INFO - Logging configured successfully
+2025-04-20 07:35:58,567 - app.main - INFO - API routes registered successfully
+2025-04-20 07:36:15,407 - app.main - INFO - Logging configured successfully
+2025-04-20 07:36:15,419 - app.main - INFO - API routes registered successfully
+2025-04-20 07:36:33,432 - app.main - INFO - Logging configured successfully
+2025-04-20 07:36:33,441 - app.main - INFO - API routes registered successfully
+2025-04-20 07:37:35,297 - app.main - INFO - Logging configured successfully
+2025-04-20 07:37:35,313 - app.main - INFO - API routes registered successfully
+2025-04-20 07:37:37,654 - app.main - INFO - Logging configured successfully
+2025-04-20 07:37:37,667 - app.main - INFO - API routes registered successfully
+2025-04-20 07:40:04,517 - app.main - INFO - Logging configured successfully
+2025-04-20 07:40:04,533 - app.main - INFO - API routes registered successfully
+2025-04-20 07:42:58,235 - app.main - INFO - Logging configured successfully
+2025-04-20 07:42:58,249 - app.main - INFO - API routes registered successfully
+2025-04-20 07:44:04,424 - app.main - INFO - Logging configured successfully
+2025-04-20 07:44:04,433 - app.main - INFO - API routes registered successfully
+2025-04-20 07:44:06,712 - app.main - INFO - Logging configured successfully
+2025-04-20 07:44:06,727 - app.main - INFO - API routes registered successfully
+2025-04-20 07:44:11,997 - app.main - INFO - Logging configured successfully
+2025-04-20 07:44:12,012 - app.main - INFO - API routes registered successfully
+2025-04-20 07:45:50,464 - app.main - INFO - Logging configured successfully
+2025-04-20 07:45:50,475 - app.main - INFO - API routes registered successfully
+2025-04-20 07:49:12,485 - app.main - INFO - Logging configured successfully
+2025-04-20 07:49:12,498 - app.main - INFO - API routes registered successfully
+2025-04-20 07:49:14,953 - app.main - INFO - Logging configured successfully
+2025-04-20 07:49:14,965 - app.main - INFO - API routes registered successfully
+2025-04-20 07:49:17,515 - app.main - INFO - Logging configured successfully
+2025-04-20 07:49:17,534 - app.main - INFO - API routes registered successfully
+2025-04-20 07:49:52,207 - app.main - INFO - Logging configured successfully
+2025-04-20 07:49:52,219 - app.main - INFO - API routes registered successfully
+2025-04-20 07:49:54,521 - app.main - INFO - Logging configured successfully
+2025-04-20 07:49:54,534 - app.main - INFO - API routes registered successfully
+2025-04-20 07:50:36,964 - app.main - INFO - Logging configured successfully
+2025-04-20 07:50:36,969 - app.main - INFO - API routes registered successfully
+2025-04-20 07:53:16,931 - app.main - INFO - Logging configured successfully
+2025-04-20 07:53:16,939 - app.main - INFO - API routes registered successfully
+2025-04-20 07:53:19,356 - app.main - INFO - Logging configured successfully
+2025-04-20 07:53:19,368 - app.main - INFO - API routes registered successfully
+2025-04-20 07:53:24,563 - app.main - INFO - Logging configured successfully
+2025-04-20 07:53:24,574 - app.main - INFO - API routes registered successfully
+2025-04-20 07:54:39,505 - app.main - INFO - Logging configured successfully
+2025-04-20 07:54:39,515 - app.main - INFO - API routes registered successfully
+2025-04-20 07:54:42,373 - app.main - INFO - Logging configured successfully
+2025-04-20 07:54:42,389 - app.main - INFO - API routes registered successfully
+2025-04-20 08:03:24,852 - app.main - INFO - Logging configured successfully
+2025-04-20 08:03:24,861 - app.main - INFO - API routes registered successfully
+2025-04-20 08:03:27,133 - app.main - INFO - Logging configured successfully
+2025-04-20 08:03:27,147 - app.main - INFO - API routes registered successfully
+2025-04-20 08:04:13,217 - app.main - INFO - Logging configured successfully
+2025-04-20 08:04:13,228 - app.main - INFO - API routes registered successfully
+2025-04-20 08:04:15,838 - app.main - INFO - Logging configured successfully
+2025-04-20 08:04:15,854 - app.main - INFO - API routes registered successfully
+2025-04-20 08:08:08,827 - app.main - INFO - Logging configured successfully
+2025-04-20 08:08:08,843 - app.main - INFO - API routes registered successfully
+2025-04-20 08:08:11,188 - app.main - INFO - Logging configured successfully
+2025-04-20 08:08:11,203 - app.main - INFO - API routes registered successfully
+2025-04-20 08:13:12,024 - app.main - INFO - Logging configured successfully
+2025-04-20 08:13:12,036 - app.main - INFO - API routes registered successfully
+2025-04-20 08:18:12,457 - app.main - INFO - Logging configured successfully
+2025-04-20 08:18:12,461 - app.main - INFO - API routes registered successfully
+2025-04-20 08:18:15,014 - app.main - INFO - Logging configured successfully
+2025-04-20 08:18:15,026 - app.main - INFO - API routes registered successfully
+2025-04-20 08:21:43,715 - app.main - INFO - Logging configured successfully
+2025-04-20 08:21:43,728 - app.main - INFO - API routes registered successfully
+2025-04-20 08:21:46,099 - app.main - INFO - Logging configured successfully
+2025-04-20 08:21:46,111 - app.main - INFO - API routes registered successfully

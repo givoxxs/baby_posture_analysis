@@ -1,7 +1,6 @@
 # Virtual Environment
 venv/
 .env
-.env.*  
 *.venv
 __pycache__/
 *.pyc
@@ -27,5 +26,14 @@ Thumbs.db
 *.err
 *.pid
 
+# logs
 logs
+logs/app.log
 *.log
+
+data
+data_cleaned
+data_baby_posture
+
+anh.jpg
+anh_1.jpg

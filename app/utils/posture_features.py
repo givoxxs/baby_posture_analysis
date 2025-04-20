@@ -217,7 +217,7 @@ def check_side_lying_indicators(
         print("Shoulder Z difference:", ls[2], rs[2])
         return True, False # Nằm nghiêng
     
-    if lh[2] * rh[2] < 0 and abs(lh[2] - rh[2]) > 0.15: # Nếu Z của hông trái và phải khác dấu -> nằm  nghiêng
+    if lh[2] * rh[2] < 0 and abs(lh[2] - rh[2]) > 0.2: # Nếu Z của hông trái và phải khác dấu -> nằm  nghiêng
         print("Hip Z difference:", lh[2], rh[2])
         return True, False # Nằm nghiêng
     
@@ -290,7 +290,7 @@ def extract_posture_features_v3(keypoints: List[List[float]], vis_threshold: flo
          return {
             "position": "unknown",
             "is_covered": None, # Use None to indicate uncertainty
-            "is_face_down": None,
+            "face_down": None,
             "arm_angles": {"left": None, "right": None},
             "leg_angles": {"left": None, "right": None},
             "unnatural_limbs": None,
@@ -299,6 +299,8 @@ def extract_posture_features_v3(keypoints: List[List[float]], vis_threshold: flo
 
     # Phân loại tư thế chính (dùng hàm mới)
     features["position"] = classify_position_v3(keypoints, vis_threshold)
+    
+    features['face_down'] = detect_face_down_v2(keypoints, vis_threshold) # Kiểm tra úp mặt
 
     # Kiểm tra che phủ (dùng hàm mới)
     features["is_covered"] = is_likely_covered(keypoints, vis_threshold)
@@ -312,13 +314,13 @@ def extract_posture_features_v3(keypoints: List[List[float]], vis_threshold: flo
     arm_angles = features["arm_angles"]
     leg_angles = features["leg_angles"]
     # Check arms: angle is not None and is < 45 or > 190
-    if (arm_angles["left"] is not None and (arm_angles["left"] < 30 or arm_angles["left"] > 220)) or \
-       (arm_angles["right"] is not None and (arm_angles["right"] < 30 or arm_angles["right"] > 220)):
+    if (arm_angles["left"] is not None and (arm_angles["left"] < 45 or arm_angles["left"] > 190)) or \
+       (arm_angles["right"] is not None and (arm_angles["right"] < 45 or arm_angles["right"] > 190)):
         unnatural = True
     # Check legs: angle is not None and is < 45 or > 190
     if not unnatural: # Only check legs if arms are okay
-         if (leg_angles["left"] is not None and (leg_angles["left"] < 30 or leg_angles["left"] > 220)) or \
-            (leg_angles["right"] is not None and (leg_angles["right"] < 30 or leg_angles["right"] > 220)):
+         if (leg_angles["left"] is not None and (leg_angles["left"] < 45 or leg_angles["left"] > 190)) or \
+            (leg_angles["right"] is not None and (leg_angles["right"] < 45 or leg_angles["right"] > 190)):
              unnatural = True
     features["unnatural_limbs"] = unnatural
 
@@ -336,6 +338,7 @@ def analyze_risk_v3(features: Dict[str, Any]) -> Dict[str, Any]:
 
     # Lấy các features đã tính toán
     position = features.get("position", "unknown")
+    face_down = features.get("face_down", False) # Có nghi ngờ úp mặt không (True/False)
     is_covered = features.get("is_covered") # Can be None
     unnatural_limbs = features.get("unnatural_limbs") # Can be None
     avg_visibility = features.get("avg_visibility", 0.0)
@@ -411,6 +414,7 @@ def analyze_risk_v3(features: Dict[str, Any]) -> Dict[str, Any]:
 
     return {
         "position": position, # Tư thế chính
+        "face_down": face_down, # Có nghi ngờ úp mặt không (True/False)
         "is_covered": is_covered, # Có bị che phủ không (True/False/None)
         "unnatural_limbs": unnatural_limbs, # Có tay/chân không tự nhiên không (True/False/None)
         "risk_level": risk_level, # Mức độ rủi ro (Low/Medium/High/Critical/Error)

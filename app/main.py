@@ -10,14 +10,19 @@ import os
 import logging
 from pathlib import Path
 
-from app.api import image, pose, pipeline, analyze, video_analyze
+from app.api import analyze, video_analyze
+
+# Ensure logs directory exists
+logs_dir = Path("logs")
+if not logs_dir.exists():
+    logs_dir.mkdir(parents=True)
 
 # Configure logging
 logging.basicConfig(
     level=logging.INFO,
     format="%(asctime)s - %(name)s - %(levelname)s - %(message)s",
     handlers=[
-        logging.FileHandler(Path("logs/app.log")),
+        logging.FileHandler(logs_dir / "app.log"),
         logging.StreamHandler()
     ]
 )
@@ -41,10 +46,6 @@ app.add_middleware(
     allow_headers=["*"],
 )
 
-# Include API routers
-app.include_router(image.router)
-app.include_router(pose.router)
-app.include_router(pipeline.router)
 app.include_router(analyze.router)
 app.include_router(video_analyze.router)
 

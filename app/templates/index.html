@@ -95,9 +95,7 @@
 </head>
 <body>
     <div class="container">
-        <h1 class="text-center mb-4">Baby Posture Analysis</h1>
-
-        <ul class="nav nav-tabs" id="myTab" role="tablist">
+        <h1 class="text-center mb-4">Baby Posture Analysis</h1>        <ul class="nav nav-tabs" id="myTab" role="tablist">
             <li class="nav-item" role="presentation">
                 <button class="nav-link active" id="image-tab" data-bs-toggle="tab"
                         data-bs-target="#image" type="button" role="tab"
@@ -110,6 +108,13 @@
                         data-bs-target="#video" type="button" role="tab"
                         aria-controls="video" aria-selected="false">
                     Video Processing
+                </button>
+            </li>
+            <li class="nav-item" role="presentation">
+                <button class="nav-link" id="stream-tab" data-bs-toggle="tab"
+                        data-bs-target="#stream" type="button" role="tab"
+                        aria-controls="stream" aria-selected="false">
+                    Video Streaming
                 </button>
             </li>
         </ul>
@@ -203,9 +208,7 @@
                         </div>
                     </div>
                 </div>
-            </div>
-
-            <!-- VIDEO PROCESSING TAB -->
+            </div>            <!-- VIDEO PROCESSING TAB -->
             <div class="tab-pane fade" id="video" role="tabpanel" aria-labelledby="video-tab">
                 <div class="row mt-4">
                     <div class="col-md-4">
@@ -280,13 +283,136 @@
                             </div>
                         </div>
                     </div>
+                </div>            </div>
+            
+            <!-- VIDEO STREAMING TAB -->
+            <div class="tab-pane fade" id="stream" role="tabpanel" aria-labelledby="stream-tab">
+                <div class="row mt-4">
+                    <div class="col-md-4">
+                        <div class="card">
+                            <div class="card-header">Video Stream Simulation</div>
+                            <div class="card-body">
+                                <form id="streamVideoForm" enctype="multipart/form-data">
+                                    <div class="mb-3">
+                                        <label for="streamVideoUpload" class="form-label">Select Video for Stream Simulation</label>
+                                        <input type="file" class="form-control" id="streamVideoUpload" name="file"
+                                               accept="video/*" required>
+                                        <div class="form-text">Supported formats: MP4, AVI, MOV</div>
+                                    </div>
+                                    
+                                    <div class="mb-3">
+                                        <label for="frameRate" class="form-label">FPS (frames per second)</label>
+                                        <select class="form-select" id="frameRate">
+                                            <option value="1">1 FPS (slow)</option>
+                                            <option value="2" selected>2 FPS (recommended)</option>
+                                            <option value="5">5 FPS (faster)</option>
+                                            <option value="10">10 FPS (very fast)</option>
+                                        </select>
+                                        <div class="form-text">Adjust stream speed (lower is more reliable)</div>
+                                    </div>
+
+                                    <div class="d-grid gap-2 mb-3">
+                                        <button type="button" id="startStreamBtn" class="btn btn-primary">Start Streaming</button>
+                                        <button type="button" id="stopStreamBtn" class="btn btn-secondary" disabled>Stop Streaming</button>
+                                    </div>
+                                </form>
+
+                                <div class="text-center mt-3">
+                                    <div class="spinner-border text-primary loading-spinner" role="status" id="streamLoadingSpinner">
+                                        <span class="visually-hidden">Loading...</span>
+                                    </div>
+                                </div>
+                                <div id="streamAlertMessage" class="alert mt-3" role="alert" style="display: none;"></div>
+                            </div>
+                        </div>
+                        
+                        <div class="card mt-3">
+                            <div class="card-header">Streaming Status</div>
+                            <div class="card-body">
+                                <div id="streamStatusContainer">
+                                    <p><strong>Connection:</strong> <span id="connectionStatus">Disconnected</span></p>
+                                    <p><strong>Current Frame:</strong> <span id="currentFrameNumber">0</span> / <span id="totalFrames">0</span></p>
+                                    <p><strong>Stream Duration:</strong> <span id="streamDuration">0s</span></p>
+                                    <p><strong>FPS:</strong> <span id="actualFPS">0</span></p>
+                                    <div class="progress mt-2">
+                                        <div id="streamProgress" class="progress-bar" role="progressbar" style="width: 0%"></div>
+                                    </div>
+                                </div>
+                            </div>
+                        </div>
+                    </div>
+
+                    <div class="col-md-8">
+                        <div class="card">
+                            <div class="card-header">Live Stream Analysis</div>
+                            <div class="card-body">
+                                <div class="row">
+                                    <div class="col-md-6">
+                                        <div class="image-container">
+                                            <div class="fw-bold mb-2">Current Frame</div>
+                                            <img id="currentStreamFrame" src="" alt="Current stream frame" style="display: none;">
+                                            <p id="noStreamMsg" class="text-muted text-center">
+                                                No active stream. Start streaming to view frames.
+                                            </p>
+                                        </div>
+                                    </div>
+
+                                    <div class="col-md-6">
+                                        <div class="image-container">
+                                            <div class="fw-bold mb-2">Analyzed Frame</div>
+                                            <img id="analyzedStreamFrame" src="" alt="Analyzed stream frame" style="display: none;">
+                                            <p id="noAnalyzedStreamMsg" class="text-muted text-center">
+                                                No analysis results yet
+                                            </p>
+                                        </div>
+                                    </div>
+                                </div>
+
+                                <div id="streamPostureResults" class="mt-4" style="display: none;">
+                                    <div class="row">
+                                        <div class="col-md-6">
+                                            <div class="card bg-light">
+                                                <div class="card-body">
+                                                    <h5 class="card-title">Posture Classification</h5>
+                                                    <p><strong>Position:</strong> <span id="streamPosturePosition">Unknown</span></p>
+                                                    <p><strong>Blanket:</strong> <span id="streamHasBlanket">No</span></p>
+                                                    <p><strong>Timestamp:</strong> <span id="streamTimestamp">N/A</span></p>
+                                                </div>
+                                            </div>
+                                        </div>
+                                        
+                                        <div class="col-md-6">
+                                            <div class="card bg-light">
+                                                <div class="card-body">
+                                                    <h5 class="card-title">Safety Alerts</h5>
+                                                    <div id="streamSafetyAlerts">
+                                                        <p class="text-muted">No safety alerts detected</p>
+                                                    </div>
+                                                </div>
+                                            </div>
+                                        </div>
+                                    </div>
+                                </div>
+                            </div>
+                        </div>
+                        
+                        <div class="card mt-3">
+                            <div class="card-header">Streaming Log</div>
+                            <div class="card-body">
+                                <pre id="streamLog" class="border rounded p-3 bg-light" style="max-height: 200px; overflow-y: auto;">Stream log will appear here...</pre>
+                                <div class="form-check mt-2">
+                                    <input class="form-check-input" type="checkbox" id="autoScrollLog" checked>
+                                    <label class="form-check-label" for="autoScrollLog">Auto-scroll log</label>
+                                </div>
+                            </div>
+                        </div>
+                    </div>
                 </div>
             </div>
         </div>
     </div>
 
-    <script src="https://cdn.jsdelivr.net/npm/bootstrap@5.3.0-alpha1/dist/js/bootstrap.bundle.min.js"></script>
-    <script>
+    <script src="https://cdn.jsdelivr.net/npm/bootstrap@5.3.0-alpha1/dist/js/bootstrap.bundle.min.js"></script>    <script>
         document.addEventListener('DOMContentLoaded', function() {
             // Elements for image processing tab
             const imageUploadForm = document.getElementById('uploadForm');
@@ -299,6 +425,32 @@
             const annotatedImage = document.getElementById('annotatedImage');
             const noAnnotatedMsg = document.getElementById('noAnnotatedMsg');
             const postureResultsContainer = document.getElementById('postureResultsContainer');
+            
+            // Elements for streaming tab
+            const streamVideoForm = document.getElementById('streamVideoForm');
+            const streamVideoUpload = document.getElementById('streamVideoUpload');
+            const frameRateSelect = document.getElementById('frameRate');
+            const startStreamBtn = document.getElementById('startStreamBtn');
+            const stopStreamBtn = document.getElementById('stopStreamBtn');
+            const streamLoadingSpinner = document.getElementById('streamLoadingSpinner');
+            const streamAlertMessage = document.getElementById('streamAlertMessage');
+            const connectionStatus = document.getElementById('connectionStatus');
+            const currentFrameNumber = document.getElementById('currentFrameNumber');
+            const totalFrames = document.getElementById('totalFrames');
+            const streamDuration = document.getElementById('streamDuration');
+            const actualFPS = document.getElementById('actualFPS');
+            const streamProgress = document.getElementById('streamProgress');
+            const currentStreamFrame = document.getElementById('currentStreamFrame');
+            const noStreamMsg = document.getElementById('noStreamMsg');
+            const analyzedStreamFrame = document.getElementById('analyzedStreamFrame');
+            const noAnalyzedStreamMsg = document.getElementById('noAnalyzedStreamMsg');
+            const streamPostureResults = document.getElementById('streamPostureResults');
+            const streamPosturePosition = document.getElementById('streamPosturePosition');
+            const streamHasBlanket = document.getElementById('streamHasBlanket');
+            const streamTimestamp = document.getElementById('streamTimestamp');
+            const streamSafetyAlerts = document.getElementById('streamSafetyAlerts');
+            const streamLog = document.getElementById('streamLog');
+            const autoScrollLog = document.getElementById('autoScrollLog');
             
             // Elements for video processing tab
             const videoUploadForm = document.getElementById('videoUploadForm');
@@ -569,13 +721,340 @@
                 element.className = `alert alert-${type} mt-3`;
                 element.style.display = 'block';
             }
-            
-            // Helper function to format seconds
+              // Helper function to format seconds
             function formatSeconds(seconds) {
                 const mins = Math.floor(seconds / 60);
                 const secs = Math.floor(seconds % 60);
                 return `${mins.toString().padStart(2, '0')}:${secs.toString().padStart(2, '0')}`;
             }
+
+            // Video Streaming Tab functionality
+            let socket = null;
+            let streamInterval = null;
+            let videoElement = null;
+            let canvas = null;
+            let videoStartTime = 0;
+            let frameCount = 0;
+            let framesSent = 0;
+            let lastTimestamp = 0;
+            let isStreaming = false;
+
+            // Create hidden video and canvas elements
+            function setupVideoElements() {
+                if (!videoElement) {
+                    videoElement = document.createElement('video');
+                    videoElement.setAttribute('style', 'display:none');
+                    videoElement.setAttribute('muted', 'true');
+                    videoElement.setAttribute('playsinline', 'true');
+                    document.body.appendChild(videoElement);
+                }
+                
+                if (!canvas) {
+                    canvas = document.createElement('canvas');
+                    canvas.setAttribute('style', 'display:none');
+                    document.body.appendChild(canvas);
+                }
+            }
+
+            // Log messages to the stream log
+            function logToStream(message, type = 'info') {
+                const timestamp = new Date().toLocaleTimeString();
+                let logClass = '';
+                switch (type) {
+                    case 'success': logClass = 'text-success'; break;
+                    case 'warning': logClass = 'text-warning'; break;
+                    case 'error': logClass = 'text-danger'; break;
+                    default: logClass = 'text-secondary';
+                }
+                
+                const logEntry = `<div class="${logClass}">[${timestamp}] ${message}</div>`;
+                streamLog.innerHTML += logEntry;
+                
+                if (autoScrollLog.checked) {
+                    streamLog.scrollTop = streamLog.scrollHeight;
+                }
+            }
+
+            // Show alert in the streaming tab
+            function showStreamAlert(message, type) {
+                streamAlertMessage.textContent = message;
+                streamAlertMessage.className = `alert alert-${type} mt-3`;
+                streamAlertMessage.style.display = 'block';
+            }
+
+            // Capture and send frame via WebSocket
+            function captureAndSendFrame() {
+                if (!isStreaming || !socket || socket.readyState !== WebSocket.OPEN) {
+                    stopStreaming();
+                    return;
+                }
+                
+                try {
+                    // Skip if video is ended
+                    if (videoElement.ended || videoElement.paused) {
+                        logToStream("Video playback ended", "info");
+                        stopStreaming();
+                        return;
+                    }
+                    
+                    // Update current frame number
+                    framesSent++;
+                    const currentTime = videoElement.currentTime;
+                    const durationSeconds = Math.round(videoElement.duration);
+                    const progress = (currentTime / videoElement.duration) * 100;
+                    
+                    currentFrameNumber.textContent = framesSent;
+                    streamDuration.textContent = formatSeconds(currentTime);
+                    streamProgress.style.width = `${progress}%`;
+                    
+                    // Calculate actual FPS
+                    const now = performance.now();
+                    if (lastTimestamp > 0) {
+                        const timeDiff = now - lastTimestamp;
+                        if (timeDiff > 0) {
+                            actualFPS.textContent = Math.round(1000 / timeDiff);
+                        }
+                    }
+                    lastTimestamp = now;
+                    
+                    // Capture frame from video
+                    const ctx = canvas.getContext('2d');
+                    canvas.width = videoElement.videoWidth;
+                    canvas.height = videoElement.videoHeight;
+                    ctx.drawImage(videoElement, 0, 0, canvas.width, canvas.height);
+                    
+                    // Convert canvas to base64 image
+                    const frameData = canvas.toDataURL('image/jpeg', 0.7);
+                    
+                    // Display current frame
+                    currentStreamFrame.src = frameData;
+                    currentStreamFrame.style.display = 'block';
+                    noStreamMsg.style.display = 'none';
+                    
+                    // Send frame to server via WebSocket
+                    const data = {
+                        image: frameData,
+                        timestamp: new Date().toISOString(),
+                        frameNumber: framesSent
+                    };
+                    
+                    socket.send(JSON.stringify(data));
+                    
+                    // Add to log every 10 frames
+                    if (framesSent % 10 === 0) {
+                        logToStream(`Sent frame #${framesSent} (${Math.round(progress)}% of video)`, "info");
+                    }
+                    
+                } catch (error) {
+                    logToStream(`Error capturing frame: ${error.message}`, "error");
+                }
+            }
+
+            // Start streaming video frames
+            function startStreaming() {
+                isStreaming = true;
+                framesSent = 0;
+                videoStartTime = performance.now();
+                lastTimestamp = 0;
+                
+                // Reset UI
+                streamPostureResults.style.display = 'none';
+                analyzedStreamFrame.style.display = 'none';
+                noAnalyzedStreamMsg.style.display = 'block';
+                streamSafetyAlerts.innerHTML = '<p class="text-muted">No safety alerts detected</p>';
+                streamLog.innerHTML = '';
+                logToStream("Starting video stream simulation...", "info");
+                
+                connectionStatus.textContent = 'Connecting...';
+                connectionStatus.className = 'text-warning';
+                
+                // Set up WebSocket connection
+                const protocol = window.location.protocol === 'https:' ? 'wss://' : 'ws://';
+                const wsUrl = `${protocol}${window.location.host}/api/analyze/video-stream`;
+                
+                try {
+                    socket = new WebSocket(wsUrl);
+                    
+                    socket.onopen = function() {
+                        connectionStatus.textContent = 'Connected';
+                        connectionStatus.className = 'text-success';
+                        logToStream("WebSocket connection established", "success");
+                        
+                        // Start playing the video
+                        videoElement.play().then(() => {
+                            const fps = parseInt(frameRateSelect.value, 10);
+                            const interval = Math.floor(1000 / fps);
+                            
+                            logToStream(`Video playback started, streaming at ${fps} FPS`, "success");
+                            
+                            // Start capture interval
+                            streamInterval = setInterval(captureAndSendFrame, interval);
+                        }).catch(error => {
+                            logToStream(`Error playing video: ${error.message}`, "error");
+                            stopStreaming();
+                        });
+                    };
+                    
+                    socket.onclose = function() {
+                        connectionStatus.textContent = 'Disconnected';
+                        connectionStatus.className = 'text-secondary';
+                        logToStream("WebSocket connection closed", "warning");
+                        stopStreaming();
+                    };
+                    
+                    socket.onerror = function(error) {
+                        connectionStatus.textContent = 'Error';
+                        connectionStatus.className = 'text-danger';
+                        logToStream(`WebSocket error: ${error.message || 'Unknown error'}`, "error");
+                        showStreamAlert("WebSocket connection error. Please check the server is running and try again.", "danger");
+                        stopStreaming();
+                    };
+                    
+                    socket.onmessage = function(event) {
+                        try {
+                            const response = JSON.parse(event.data);
+                            
+                            if (response.success) {
+                                // Display analysis results
+                                streamPostureResults.style.display = 'block';
+                                
+                                // Show annotated image if available
+                                if (response.annotated_image) {
+                                    analyzedStreamFrame.src = 'data:image/jpeg;base64,' + response.annotated_image;
+                                    analyzedStreamFrame.style.display = 'block';
+                                    noAnalyzedStreamMsg.style.display = 'none';
+                                }
+                                
+                                // Update posture info
+                                if (response.analysis) {
+                                    streamPosturePosition.textContent = response.analysis.position || 'Unknown';
+                                    streamHasBlanket.textContent = response.analysis.is_covered ? 'Yes' : 'No';
+                                    streamTimestamp.textContent = response.timestamp;
+                                    
+                                    // Highlight prone position
+                                    if (response.analysis.position_id === 2) { // Prone position
+                                        streamPosturePosition.classList.add('text-danger', 'fw-bold');
+                                    } else {
+                                        streamPosturePosition.classList.remove('text-danger', 'fw-bold');
+                                    }
+                                }
+                                
+                                // Display safety alerts
+                                if (response.safety_alerts && Object.keys(response.safety_alerts).length > 0) {
+                                    streamSafetyAlerts.innerHTML = '';
+                                    for (const key in response.safety_alerts) {
+                                        const alert = response.safety_alerts[key];
+                                        const alertDiv = document.createElement('div');
+                                        alertDiv.className = alert.level === 'danger' ? 'safety-danger p-2 mb-2' : 'safety-warning p-2 mb-2';
+                                        alertDiv.textContent = alert.message;
+                                        streamSafetyAlerts.appendChild(alertDiv);
+                                    }
+                                }
+                                
+                                // Log analysis result
+                                logToStream(`Received analysis: Position=${response.analysis?.position || 'Unknown'}`, "success");
+                            } else {
+                                logToStream(`Analysis error: ${response.message || 'Unknown error'}`, "warning");
+                            }
+                        } catch (error) {
+                            logToStream(`Error parsing server response: ${error.message}`, "error");
+                        }
+                    };
+                    
+                } catch (error) {
+                    logToStream(`Error setting up WebSocket: ${error.message}`, "error");
+                    showStreamAlert("Failed to set up WebSocket connection: " + error.message, "danger");
+                    stopStreaming();
+                }
+            }
+
+            // Stop streaming
+            function stopStreaming() {
+                isStreaming = false;
+                
+                // Clear interval
+                if (streamInterval) {
+                    clearInterval(streamInterval);
+                    streamInterval = null;
+                }
+                
+                // Pause video
+                if (videoElement && !videoElement.paused) {
+                    videoElement.pause();
+                }
+                
+                // Close WebSocket
+                if (socket && socket.readyState === WebSocket.OPEN) {
+                    socket.close();
+                }
+                
+                // Update UI
+                startStreamBtn.disabled = false;
+                stopStreamBtn.disabled = true;
+                streamLoadingSpinner.style.display = 'none';
+                
+                logToStream("Streaming stopped", "warning");
+            }
+
+            // Handle stream video upload
+            streamVideoUpload.addEventListener('change', function() {
+                if (this.files && this.files[0]) {
+                    setupVideoElements();
+                    
+                    // Create object URL for the video
+                    const videoUrl = URL.createObjectURL(this.files[0]);
+                    videoElement.src = videoUrl;
+                    
+                    // When metadata is loaded, update total frames count
+                    videoElement.onloadedmetadata = function() {
+                        // Estimate frame count based on duration and frame rate
+                        const fps = parseInt(frameRateSelect.value, 10);
+                        const estimatedFrames = Math.ceil(videoElement.duration * fps);
+                        
+                        totalFrames.textContent = estimatedFrames;
+                        streamDuration.textContent = formatSeconds(0);
+                        currentFrameNumber.textContent = '0';
+                        streamProgress.style.width = '0%';
+                        
+                        logToStream(`Video loaded: ${Math.round(videoElement.duration)}s duration, ${estimatedFrames} estimated frames at ${fps} FPS`, "info");
+                    };
+                    
+                    // Reset alerts
+                    streamAlertMessage.style.display = 'none';
+                    startStreamBtn.disabled = false;
+                }
+            });
+
+            // Handle frame rate change
+            frameRateSelect.addEventListener('change', function() {
+                if (videoElement && videoElement.duration) {
+                    const fps = parseInt(this.value, 10);
+                    const estimatedFrames = Math.ceil(videoElement.duration * fps);
+                    totalFrames.textContent = estimatedFrames;
+                    
+                    logToStream(`Frame rate changed to ${fps} FPS. Estimated ${estimatedFrames} frames.`, "info");
+                }
+            });
+
+            // Handle start stream button click
+            startStreamBtn.addEventListener('click', function() {
+                if (!streamVideoUpload.files || !streamVideoUpload.files[0]) {
+                    showStreamAlert('Please select a video to stream', 'danger');
+                    return;
+                }
+                
+                streamAlertMessage.style.display = 'none';
+                startStreamBtn.disabled = true;
+                stopStreamBtn.disabled = false;
+                streamLoadingSpinner.style.display = 'inline-block';
+                
+                startStreaming();
+            });
+
+            // Handle stop stream button click
+            stopStreamBtn.addEventListener('click', function() {
+                stopStreaming();
+            });
         });
     </script>
 </body>

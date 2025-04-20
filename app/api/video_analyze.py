@@ -3,7 +3,7 @@ from fastapi.responses import JSONResponse # type: ignore
 from typing import Optional, Dict, Any, List
 import traceback
 import logging
-from datetime import datetime
+from datetime import datetime, timedelta
 import asyncio
 import cv2
 import numpy as np
@@ -201,8 +201,7 @@ class VideoAnalyzer:
                 if fps > 0:
                     seconds = frame_index / fps
                     timestamps.append(seconds)
-                    timestamp = (datetime.now() + 
-                                 datetime.timedelta(seconds=seconds)).isoformat()
+                    timestamp = (datetime.now() + timedelta(seconds=seconds)).isoformat()
                 
                 # Analyze this frame
                 result = await self._process_frame(frame, timestamp)

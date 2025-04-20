@@ -297,16 +297,17 @@ class BabyPostureAnalysisPipeline:
         blanket_text = f"Đắp chăn: {'Có' if is_covered else 'Không'}"
         
         # Vẽ thông tin về mặt
-        y_pos = y_offset + 25
-        for dx, dy in [(-shadow_offset, -shadow_offset), (shadow_offset, -shadow_offset),
-                      (-shadow_offset, shadow_offset), (shadow_offset, shadow_offset)]:
-            # draw.text((10 + dx, y_pos + dy), face_text, font=font_small, fill=shadow_color)
-            draw.text((10 + dx, y_pos + dy), font=font_small, fill=shadow_color)
-        # draw.text((10, y_pos), face_text, font=font_small, fill=text_color)
-        draw.text((10, y_pos), font=font_small, fill=text_color)
+        # y_pos = y_offset + 25
+        # for dx, dy in [(-shadow_offset, -shadow_offset), (shadow_offset, -shadow_offset),
+        #               (-shadow_offset, shadow_offset), (shadow_offset, shadow_offset)]:
+        #     # draw.text((10 + dx, y_pos + dy), face_text, font=font_small, fill=shadow_color)
+        #     draw.text((10 + dx, y_pos + dy), font=font_small, fill=shadow_color)
+        # # draw.text((10, y_pos), face_text, font=font_small, fill=text_color)
+        # draw.text((10, y_pos), font=font_small, fill=text_color)
         
         # Vẽ thông tin về đắp chăn
-        y_pos += 20
+        # y_pos += 20
+        y_pos = y_offset + 25
         for dx, dy in [(-shadow_offset, -shadow_offset), (shadow_offset, -shadow_offset),
                       (-shadow_offset, shadow_offset), (shadow_offset, shadow_offset)]:
             draw.text((10 + dx, y_pos + dy), blanket_text, font=font_small, fill=shadow_color)

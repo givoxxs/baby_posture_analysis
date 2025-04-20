@@ -27,7 +27,9 @@ Thumbs.db
 *.err
 *.pid
 
+# logs
 logs
+logs/app.log
 *.log
 
 data

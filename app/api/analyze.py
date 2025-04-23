@@ -47,6 +47,22 @@ async def analyze_baby_posture(
 
         # Process the image using our service
         result = await analysis_service.analyze_image(file, timestamp)
+        logger.info("="*50)
+        logger.info(f"Image analysis result:")
+        if result.get("success"):
+            logger.info(f"Success: {result.get('success')}")
+            logger.info(f"Posture: {result.get('analysis', {}).get('position')}")
+            logger.info(f"Face: {result.get('analysis', {}).get('face_covered')}")
+            logger.info(f"Blanket: {result.get('analysis', {}).get('is_covered')}")
+            logger.info(f"Image dimensions: {result.get('image_dimensions')}")
+            logger.info(f"Processing time (ms): {result.get('processing_time_ms')}")
+            logger.info(f"Image filename: {file.filename}")
+        else:
+            logger.info(f"Success: {result.get('success')}")
+            logger.info(f"Message: {result.get('message')}")
+            logger.info(f"Image filename: {file.filename}")
+        logger.info(f"Timestamp: {result.get('timestamp')}") 
+        logger.info("="*50)
 
         if not result.get("success"):
             logger.warning(f"Analysis failed for {file.filename}: {result.get('message')}")

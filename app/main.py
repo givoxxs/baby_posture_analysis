@@ -7,8 +7,17 @@ from fastapi.middleware.cors import CORSMiddleware
 from fastapi.staticfiles import StaticFiles
 from fastapi.responses import FileResponse
 import os
+import sys
 import logging
 from pathlib import Path
+from dotenv import load_dotenv
+from pyngrok import ngrok # type: ignore
+
+load_dotenv()
+
+ngrok.set_auth_token(os.getenv("NGROK_AUTHTOKEN"))
+public_url = ngrok.connect(8080)
+print(f"Public URL: {public_url}")
 
 from app.api import analyze, video_analyze
 from app.services.websocket_service import WebSocketHandler
@@ -23,8 +32,8 @@ logging.basicConfig(
     level=logging.INFO,
     format="%(asctime)s - %(name)s - %(levelname)s - %(message)s",
     handlers=[
-        logging.FileHandler(logs_dir / "app.log"),
-        logging.StreamHandler()
+        logging.FileHandler(logs_dir / "app.log",  encoding='utf-8'),
+        logging.StreamHandler(sys.stdout)
     ]
 )
 
@@ -71,3 +80,7 @@ async def read_index():
 async def websocket_endpoint(websocket: WebSocket):
     await websocket.accept()
     await websocket_handler.handle_connection(websocket)
+
+if __name__ == "__main__":
+    import uvicorn
+    uvicorn.run(app, host="0.0.0.0", port=8000, log_level="info")

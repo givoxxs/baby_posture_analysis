@@ -4,15 +4,27 @@ import firebase_admin
 from firebase_admin import credentials, firestore
 import cloudinary
 import cloudinary.uploader
+from google.cloud.firestore_v1.async_client import AsyncClient
+from google.oauth2 import service_account
 
 # Load environment variables
 load_dotenv()
 
 # Initialize Firebase using the JSON credential file
-cred = credentials.Certificate('babycare_connecction.json')
-
+cred = credentials.Certificate('babycare_connection.json')
 firebase_admin.initialize_app(cred)
-db = firestore.client()
+
+# Create credentials object for AsyncClient
+credentials = service_account.Credentials.from_service_account_file(
+    'babycare_connection.json'
+)
+
+# Initialize Firestore clients
+db = AsyncClient(
+    project=cred.project_id,
+    credentials=credentials
+)
+sync_db = firestore.client()
 
 # Initialize Cloudinary
 cloudinary.config(

@@ -185,41 +185,6 @@ The system follows a modular pipeline architecture:
     - `sample_rate`: Frames per second to analyze (optional)
   - **Returns**: Time-series analysis of posture throughout the video
 
-## 📊 Response Format
-
-Analysis responses include:
-
-```json
-{
-  "success": true,
-  "posture": {
-    "position": "side",  // "back", "stomach", "side", or "unknown"
-    "face_down": false,
-    "is_covered": true,
-    "risk_level": "Medium",  // "Low", "Medium", "High", "Critical"
-    "unnatural_limbs": false,
-    "risk_score": 5.2,  // Scale from 1.0 to 10.0
-    "confidence": 82,  // Percentage confidence in the analysis
-    "reasons": [
-      "Baby is sleeping on their side",
-      "Head is partially turned down"
-    ],
-    "recommendations": [
-      "Consider repositioning baby to back sleeping position",
-      "Ensure face is not obstructed"
-    ]
-  },
-  "image": {
-    "annotated": "base64_encoded_image_data",
-    "processing_time_ms": 345
-  },
-  "image_dimensions": {
-    "width": 1280,
-    "height": 720
-  }
-}
-```
-
 ## 🔬 Machine Learning Models
 
 This system uses trained machine learning models to analyze posture features:

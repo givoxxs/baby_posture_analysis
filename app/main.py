@@ -2,7 +2,7 @@
 Application entry point for FastAPI.
 """
 
-from fastapi import FastAPI
+from fastapi import FastAPI, WebSocket
 from fastapi.middleware.cors import CORSMiddleware
 from fastapi.staticfiles import StaticFiles
 from fastapi.responses import FileResponse
@@ -11,6 +11,7 @@ import logging
 from pathlib import Path
 
 from app.api import analyze, video_analyze
+from app.services.websocket_service import WebSocketHandler
 
 # Ensure logs directory exists
 logs_dir = Path("logs")
@@ -29,6 +30,9 @@ logging.basicConfig(
 
 logger = logging.getLogger("app.main")
 logger.info("Logging configured successfully")
+
+# Initialize WebSocket handler
+websocket_handler = WebSocketHandler()
 
 # Create FastAPI app
 app = FastAPI(
@@ -56,8 +60,14 @@ logger.info("API routes registered successfully")
 static_dir = "static"
 if not os.path.exists(static_dir):
     os.makedirs(static_dir)
-
+    
 # Root endpoint - serve the HTML file
 @app.get("/")
 async def read_index():
     return FileResponse("app/templates/index.html")
+
+# WebSocket endpoint
+@app.websocket("/ws")
+async def websocket_endpoint(websocket: WebSocket):
+    await websocket.accept()
+    await websocket_handler.handle_connection(websocket)

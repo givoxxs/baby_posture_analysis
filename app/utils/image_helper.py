@@ -38,6 +38,11 @@ class Image_Rotation_Helper:
         pass
     
     def rotate_image_baby(self, keypoints, origin_size=(612, 408)) -> np.ndarray:
+        """
+        Xoay ảnh của em bé về phía trước, dựa vào vị trí của vai và hông.
+        Đầu vào là keypoints của em bé, đầu ra là keypoints đã được xoay.
+        
+        """
         left_shoulder = keypoints.landmark[11]
         right_shoulder = keypoints.landmark[12]
         left_hip = keypoints.landmark[23]

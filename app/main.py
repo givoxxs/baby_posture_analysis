@@ -11,7 +11,7 @@ import sys
 import logging
 from pathlib import Path
 from dotenv import load_dotenv
-from pyngrok import ngrok # type: ignore
+from pyngrok import ngrok  # type: ignore
 
 load_dotenv()
 
@@ -32,9 +32,9 @@ logging.basicConfig(
     level=logging.INFO,
     format="%(asctime)s - %(name)s - %(levelname)s - %(message)s",
     handlers=[
-        logging.FileHandler(logs_dir / "app.log",  encoding='utf-8'),
-        logging.StreamHandler(sys.stdout)
-    ]
+        logging.FileHandler(logs_dir / "app.log", encoding="utf-8"),
+        logging.StreamHandler(sys.stdout),
+    ],
 )
 
 logger = logging.getLogger("app.main")
@@ -47,7 +47,7 @@ websocket_handler = WebSocketHandler()
 app = FastAPI(
     title="Baby Posture Analysis",
     description="API for analyzing baby posture from images and videos",
-    version="1.0.0"
+    version="1.0.0",
 )
 
 # CORS middleware
@@ -69,11 +69,13 @@ logger.info("API routes registered successfully")
 static_dir = "static"
 if not os.path.exists(static_dir):
     os.makedirs(static_dir)
-    
+
+
 # Root endpoint - serve the HTML file
 @app.get("/")
 async def read_index():
     return FileResponse("app/templates/index.html")
+
 
 # WebSocket endpoint
 @app.websocket("/ws")
@@ -81,6 +83,8 @@ async def websocket_endpoint(websocket: WebSocket):
     await websocket.accept()
     await websocket_handler.handle_connection(websocket)
 
+
 if __name__ == "__main__":
     import uvicorn
-    uvicorn.run(app, host="0.0.0.0", port=8000, log_level="info")
+
+    uvicorn.run(app, host="0.0.0.0", port=8080, log_level="info")

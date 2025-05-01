@@ -11,24 +11,21 @@ from google.oauth2 import service_account
 load_dotenv()
 
 # Initialize Firebase using the JSON credential file
-cred = credentials.Certificate('babycare_connection.json')
+cred = credentials.Certificate("babycare_connection.json")
 firebase_admin.initialize_app(cred)
 
 # Create credentials object for AsyncClient
 credentials = service_account.Credentials.from_service_account_file(
-    'babycare_connection.json'
+    "babycare_connection.json"
 )
 
 # Initialize Firestore clients
-db = AsyncClient(
-    project=cred.project_id,
-    credentials=credentials
-)
+db = AsyncClient(project=cred.project_id, credentials=credentials)
 sync_db = firestore.client()
 
 # Initialize Cloudinary
 cloudinary.config(
     cloud_name=os.getenv("CLOUDINARY_CLOUD_NAME"),
     api_key=os.getenv("CLOUDINARY_API_KEY"),
-    api_secret=os.getenv("CLOUDINARY_API_SECRET")
+    api_secret=os.getenv("CLOUDINARY_API_SECRET"),
 )

@@ -1,8 +1,4 @@
-"""
-Application entry point for FastAPI.
-"""
-
-from fastapi import FastAPI, WebSocket
+from fastapi import FastAPI
 from fastapi.middleware.cors import CORSMiddleware
 from fastapi.staticfiles import StaticFiles
 from fastapi.responses import FileResponse
@@ -11,16 +7,23 @@ import sys
 import logging
 from pathlib import Path
 from dotenv import load_dotenv
-from pyngrok import ngrok  # type: ignore
+from pyngrok import ngrok
+import warnings
 
 load_dotenv()
 
-ngrok.set_auth_token(os.getenv("NGROK_AUTHTOKEN"))
-public_url = ngrok.connect(8080)
-print(f"Public URL: {public_url}")
+# Disable GPU for MediaPipe
+os.environ["MEDIAPIPE_DISABLE_GPU"] = "1"
 
-from app.api import analyze, video_analyze
-from app.services.websocket_service import WebSocketHandler
+# Tắt cảnh báo từ TensorFlow và MediaPipe
+os.environ["TF_CPP_MIN_LOG_LEVEL"] = "3"
+logging.getLogger("mediapipe").setLevel(logging.ERROR)
+warnings.filterwarnings("ignore")
+
+# Tắt cảnh báo từ TensorFlow
+from absl import logging as absl_logging
+
+absl_logging.set_verbosity(absl_logging.ERROR)
 
 # Ensure logs directory exists
 logs_dir = Path("logs")
@@ -40,8 +43,12 @@ logging.basicConfig(
 logger = logging.getLogger("app.main")
 logger.info("Logging configured successfully")
 
-# Initialize WebSocket handler
-websocket_handler = WebSocketHandler()
+
+ngrok.set_auth_token(os.getenv("NGROK_AUTHTOKEN"))
+public_url = ngrok.connect(8080)
+logger.info(f"Public URL: {public_url}")
+
+from app.api import analyze, video_analyze, websocket
 
 # Create FastAPI app
 app = FastAPI(
@@ -61,27 +68,24 @@ app.add_middleware(
 
 app.include_router(analyze.router)
 app.include_router(video_analyze.router)
+app.include_router(websocket.router)
 
 # Log API routes registration
 logger.info("API routes registered successfully")
 
-# Create static directory if it does n't exist
+# Create static directory if it doesn't exist
 static_dir = "static"
 if not os.path.exists(static_dir):
     os.makedirs(static_dir)
+
+# Mount static files
+app.mount("/static", StaticFiles(directory="static"), name="static")
 
 
 # Root endpoint - serve the HTML file
 @app.get("/")
 async def read_index():
     return FileResponse("app/templates/index.html")
-
-
-# WebSocket endpoint
-@app.websocket("/ws")
-async def websocket_endpoint(websocket: WebSocket):
-    await websocket.accept()
-    await websocket_handler.handle_connection(websocket)
 
 
 if __name__ == "__main__":

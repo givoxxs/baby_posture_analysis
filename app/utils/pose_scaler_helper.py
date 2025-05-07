@@ -2,6 +2,9 @@
 import pandas as pd  # type: ignore
 import numpy as np
 import mediapipe as mp  # type: ignore
+import logging
+
+logger = logging.getLogger(__name__)
 
 
 class PoseScalerHelper:
@@ -96,7 +99,7 @@ class PoseScalerHelper:
             0.5 / distance_between_hips
         )  # điều này có nghĩa là khoảng cách giữa vai và hông sẽ được co giãn về 0.5
 
-        print(f"Scale value: {scale_value}")
+        logger.info(f"Scale value: {scale_value}")
 
         return scale_value
 

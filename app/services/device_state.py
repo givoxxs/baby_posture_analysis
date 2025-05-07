@@ -1,0 +1,104 @@
+from datetime import datetime
+from app.services.notification_service import send_event_to_firestore
+
+
+class DeviceState:
+    def __init__(self, device_id, thresholds):
+        self.device_id = device_id
+        self.side_threshold = thresholds.get("sideThreshold", 10)
+        self.prone_threshold = thresholds.get("proneThreshold", 10)
+        self.no_blanket_threshold = thresholds.get("noBlanketThreshold", 10)
+        self.max_history = 5
+        self.position_baby = {
+            "position": "",
+            "count": 0,
+            "first_time": None,
+            "last_time": None,
+        }
+        self.blanket_baby = {
+            "is_covered": False,
+            "count": 0,
+            "first_time": None,
+            "last_time": None,
+        }
+        self.posture_history = []
+
+        self.last_notification_time = {"noBlanket": None, "side": None, "prone": None}
+
+    async def update_position_baby(self, position, timestamp):
+        if self.position_baby["position"] == position:
+            self.position_baby["count"] += 1
+            self.position_baby["last_time"] = timestamp
+        else:
+            self.position_baby["position"] = position
+            self.position_baby["count"] = 1
+            self.position_baby["first_time"] = timestamp
+            self.position_baby["last_time"] = timestamp
+            await send_event_to_firestore(self.device_id, position, timestamp)
+
+    async def update_blanket_baby(self, is_covered, timestamp):
+        if self.blanket_baby["is_covered"] == is_covered:
+            self.blanket_baby["count"] += 1
+            self.blanket_baby["last_time"] = timestamp
+        else:
+            self.blanket_baby["is_covered"] = is_covered
+            self.blanket_baby["count"] = 1
+            self.blanket_baby["first_time"] = timestamp
+            self.blanket_baby["last_time"] = timestamp
+            if is_covered == False:
+                await send_event_to_firestore(self.device_id, "no_blanket", timestamp)
+            else:
+                await send_event_to_firestore(self.device_id, "has_blanket", timestamp)
+
+    # Calculate seconds between two timestamps
+    def calc_time(self, start_time, end_time):
+        if start_time is None or end_time is None:
+            return 0
+        start_time = datetime.fromisoformat(start_time)
+        end_time = datetime.fromisoformat(end_time)
+        res = (end_time - start_time).total_seconds()
+        # Convert to integer
+        return int(res)
+
+    def check_position_baby(self):
+        if self.position_baby["position"] == "side":
+            if (
+                self.position_baby["count"] >= self.side_threshold * 80 / 100
+                and self.position_baby["last_time"] is not None
+                and self.calc_time(
+                    self.position_baby["first_time"], self.position_baby["last_time"]
+                )
+                >= (self.side_threshold)
+            ):
+                return True
+            else:
+                return False
+        elif self.position_baby["position"] == "prone":
+            if (
+                self.position_baby["count"] >= self.prone_threshold * 80 / 100
+                and self.position_baby["last_time"] is not None
+                and self.calc_time(
+                    self.position_baby["first_time"], self.position_baby["last_time"]
+                )
+                >= (self.prone_threshold)
+            ):
+                return True
+            else:
+                return False
+        return False
+
+    def check_blanket_baby(self):
+        if self.blanket_baby["is_covered"] == False:
+            if (
+                self.blanket_baby["count"] >= self.no_blanket_threshold * 80 / 100
+                and self.blanket_baby["last_time"] is not None
+                and self.calc_time(
+                    self.blanket_baby["first_time"], self.blanket_baby["last_time"]
+                )
+                >= (self.no_blanket_threshold)
+            ):
+                return True
+            else:
+                return False
+        else:
+            return False

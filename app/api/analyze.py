@@ -97,12 +97,12 @@ async def analyze_baby_posture(
             },
             "image_dimensions": result["image_dimensions"],
         }
-        print(f"Success: ", response["success"])
-        print(f"Timestamp: ", response["timestamp"])
-        print(f"Posture: ", response["posture"])
-        # print(f"Face: ", response["face"])
-        print(f"Blanket: ", response["blanket"])
-        print(f"Image Dimensions: ", response["image_dimensions"])
+        logger.info(f"Success: ", response["success"])
+        logger.info(f"Timestamp: ", response["timestamp"])
+        logger.info(f"Posture: ", response["posture"])
+        # logger.info(f"Face: ", response["face"])
+        logger.info(f"Blanket: ", response["blanket"])
+        logger.info(f"Image Dimensions: ", response["image_dimensions"])
 
         return JSONResponse(content=response)
 

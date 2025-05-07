@@ -9,10 +9,13 @@ from pathlib import Path
 from typing import Dict, List, Tuple, Any, Optional
 import base64
 import os
+import logging
 
 from app.utils.image_helper import Image_Helper, Image_Rotation_Helper
 from app.utils.keypoints_helper import KeypointsExtractorHelper
 from app.utils.pose_scaler_helper import PoseScalerHelper
+
+logger = logging.getLogger(__name__)
 
 
 class BabyPostureAnalysisPipeline:
@@ -232,7 +235,7 @@ class BabyPostureAnalysisPipeline:
         coverage_ratio = 1.0 - (
             total_visibility / len(body_indices) if len(body_indices) > 0 else 0.0
         )
-        print(
+        logger.info(
             f"Blanket covering detected: {is_covered}, Coverage ratio: {coverage_ratio}"
         )
 

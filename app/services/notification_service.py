@@ -1,0 +1,254 @@
+import json
+import cloudinary.uploader
+import firebase_admin
+from firebase_admin import messaging
+from datetime import datetime
+from app.config import db
+import logging
+
+logger = logging.getLogger(__name__)
+
+
+async def upload_to_cloudinary(image_base64):
+    """Upload image to Cloudinary and return the URL"""
+    try:
+        result = cloudinary.uploader.upload(f"data:image/jpeg;base64,{image_base64}")
+        logger.info(f"Image uploaded to Cloudinary: {result['secure_url']}")
+        return result["secure_url"]
+    except Exception as e:
+        logger.error(f"Error uploading to Cloudinary: {e}")
+        return None
+
+
+async def send_event_to_firestore(device_id, event_type, start_time):
+    """Record an event in the device's events collection"""
+    try:
+        event = {"deviceId": device_id, "type": event_type, "time": start_time}
+        await db.collection("devices").document(device_id).collection("events").add(
+            event
+        )
+        logger.info(f"Event sent to Firestore: {event}")
+    except Exception as e:
+        logger.error(f"Error sending event to Firestore: {e}")
+
+
+async def get_device_connections(device_id):
+    """Get all connections for a device"""
+    try:
+        connections_ref = (
+            db.collection("devices").document(device_id).collection("connections")
+        )
+        connections = await connections_ref.get()
+        return [connection.to_dict() for connection in connections]
+    except Exception as e:
+        logger.error(f"Error getting device connections: {e}")
+        return []
+
+
+async def get_user(user_id):
+    """Get user document by ID"""
+    try:
+        user_doc = await db.collection("users").document(user_id).get()
+        if user_doc.exists:
+            return user_doc.to_dict()
+        return None
+    except Exception as e:
+        logger.error(f"Error getting user: {e}")
+        return None
+
+
+async def send_notifications(
+    device_id, event_type, duration, start_time, image_url=None
+):
+    """
+    Send notifications to all users connected to a device
+
+    Args:
+        device_id: The device ID
+        event_type: The type of event (side, prone, no_blanket, etc.)
+        duration: Duration of the event in seconds
+        start_time: The timestamp of when the event started
+        image_url: Optional URL to an image
+    """
+    try:
+        # Map event types to notification types
+        notification_type_map = {
+            "side": "Side",
+            "prone": "Prone",
+            "no_blanket": "NoBlanket",
+            "has_blanket": "Blanket",
+        }
+
+        # Get notification type for the event
+        notification_type = notification_type_map.get(event_type, event_type)
+
+        # Save the notification in the pushnotifications collection for the device
+        push_notification = {
+            "deviceId": device_id,
+            "type": notification_type,
+            "duration": duration,
+            "time": start_time,
+        }
+
+        await db.collection("devices").document(device_id).collection(
+            "pushnotifications"
+        ).add(push_notification)
+
+        # Save to global notifications collection with image URL if available
+        if image_url:
+            notification = {
+                "deviceId": device_id,
+                "type": notification_type,
+                "duration": duration,
+                "time": start_time,
+                "imageUrl": image_url,
+            }
+            notification_ref = await db.collection("notifications").add(notification)
+            notification_id = notification_ref.id
+
+            # Get all connections for this device
+            connections = await get_device_connections(device_id)
+
+            # For each connection, get the user and send notification to their FCM tokens
+            for connection in connections:
+                user_id = connection.get("userId")
+                if not user_id:
+                    continue
+
+                # Get the user document to check language preference and FCM tokens
+                user = await get_user(user_id)
+                if not user or not user.get("fcmTokens"):
+                    continue
+
+                # Determine language preference (default to 'en' if not specified)
+                language = user.get("language", "en")
+
+                # Create notification title and body based on language preference
+                title, body = create_notification_content(
+                    language,
+                    connection.get("name", "Device"),
+                    notification_type,
+                    duration,
+                )
+                # Create the FCM message payload
+                fcm_message = {
+                    "title": title,
+                    "body": body,
+                    "data": {
+                        "id": notification_id,
+                        "type": notification_type,
+                        "time": int(
+                            datetime.fromisoformat(start_time).timestamp()
+                        ),  # Convert to Unix timestamp
+                        "duration": duration,
+                    },
+                }
+
+                # Send to all FCM tokens for this user
+                fcm_tokens = user.get("fcmTokens", [])
+                for token in fcm_tokens:
+                    await send_fcm_notification(token, fcm_message)
+
+    except Exception as e:
+        logger.error(f"Error sending notifications: {e}")
+
+
+def create_notification_content(language, device_name, notification_type, duration):
+    """
+    Create notification title and body based on language preference
+
+    Args:
+        language: User language preference ('en' or 'vi')
+        device_name: Name of the device/connection
+        notification_type: Type of notification (Side, Prone, NoBlanket, etc.)
+        duration: Duration in seconds
+
+    Returns:
+        Tuple of (title, body)
+    """
+    if language == "vi":
+        title_map = {
+            "Side": f"[{device_name}] Cảnh báo nằm nghiêng",
+            "Prone": f"[{device_name}] Cảnh báo nằm sấp",
+            "NoBlanket": f"[{device_name}] Cảnh báo không có chăn",
+            "Blanket": f"[{device_name}] Thông báo có chăn",
+            "Crying": f"[{device_name}] Cảnh báo khóc",
+        }
+
+        body_map = {
+            "Side": f"Bé đang nằm nghiêng, đã liên tục trong {duration} giây",
+            "Prone": f"Bé đang nằm sấp, đã liên tục trong {duration} giây",
+            "NoBlanket": f"Bé không có chăn, đã liên tục trong {duration} giây",
+            "Blanket": f"Bé đã được đắp chăn",
+            "Crying": f"Bé đang khóc, đã liên tục trong {duration} giây",
+        }
+    else:  # Default to English
+        title_map = {
+            "Side": f"[{device_name}] Side position alert",
+            "Prone": f"[{device_name}] Prone position alert",
+            "NoBlanket": f"[{device_name}] No blanket alert",
+            "Blanket": f"[{device_name}] Blanket notification",
+            "Crying": f"[{device_name}] Crying alert",
+        }
+
+        body_map = {
+            "Side": f"Baby is lying on his side, continuously for {duration} seconds",
+            "Prone": f"Baby is lying on his stomach, continuously for {duration} seconds",
+            "NoBlanket": f"Baby has no blanket, continuously for {duration} seconds",
+            "Blanket": f"Baby is now covered with a blanket",
+            "Crying": f"Baby is crying, continuously for {duration} seconds",
+        }
+
+    # Get the title and body or use defaults if the type is not in the map
+    title = title_map.get(notification_type, f"[{device_name}] Alert")
+    body = body_map.get(
+        notification_type, f"Alert condition detected for {duration} seconds"
+    )
+
+    return title, body
+
+
+async def send_fcm_notification(token, message):
+    """
+    Send a notification to a specific FCM token
+    """
+    try:
+        # Create the FCM message
+        fcm_message = messaging.Message(
+            notification=messaging.Notification(
+                title=message["title"], body=message["body"]
+            ),
+            data=message["data"],
+            token=token,
+        )
+
+        # Send the message
+        response = messaging.send(fcm_message)
+        logger.info(f"Successfully sent FCM message to {token}: {response}")
+        return response
+    except Exception as e:
+        logger.error(f"Error sending FCM notification: {e}")
+        return None
+
+
+async def get_device_thresholds(device_id):
+    """Get device thresholds from Firestore"""
+    try:
+        # Create query
+        query = db.collection("devices").where("id", "==", device_id)
+        logger.info(f"Querying device thresholds for ID: {device_id}")
+
+        # Execute query and get results
+        device_docs = await query.get()
+        logger.info(f"Device documents found: {len(device_docs)}")
+
+        # Check results
+        if not device_docs or len(device_docs) == 0:
+            logger.warning(f"No device found with ID: {device_id}")
+            return None
+
+        # Convert first document to dict
+        return device_docs[0].to_dict()
+    except Exception as e:
+        logger.error(f"Error getting device thresholds: {e}")
+        return None

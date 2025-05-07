@@ -10,6 +10,10 @@ from dotenv import load_dotenv
 from pyngrok import ngrok
 import warnings
 
+ngrok.set_auth_token(os.getenv("NGROK_AUTHTOKEN"))
+public_url = ngrok.connect(8080)
+print(f"Public URL: {public_url}")
+
 load_dotenv()
 
 # Disable GPU for MediaPipe
@@ -43,10 +47,9 @@ logging.basicConfig(
 logger = logging.getLogger("app.main")
 logger.info("Logging configured successfully")
 
-
-ngrok.set_auth_token(os.getenv("NGROK_AUTHTOKEN"))
-public_url = ngrok.connect(8080)
-logger.info(f"Public URL: {public_url}")
+# ngrok.set_auth_token(os.getenv("NGROK_AUTHTOKEN"))
+# public_url = ngrok.connect(8080)
+# logger.info(f"Public URL: {public_url}")
 
 from app.api import analyze, video_analyze, websocket
 

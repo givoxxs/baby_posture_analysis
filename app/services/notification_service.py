@@ -35,8 +35,11 @@ async def send_event_to_firestore(device_id, event_type, start_time):
 async def get_device_connections(device_id):
     """Get all connections for a device"""
     try:
-        connections_ref = (
-            db.collection("devices").document(device_id).collection("connections")
+        # connections_ref = (
+        #     db.collection("devices").document(device_id).collection("connections")
+        # )
+        connections_ref = db.collection("connections").where(
+            "device_id", "==", device_id
         )
         connections = await connections_ref.get()
         return [connection.to_dict() for connection in connections]
@@ -48,9 +51,10 @@ async def get_device_connections(device_id):
 async def get_user(user_id):
     """Get user document by ID"""
     try:
-        user_doc = await db.collection("users").document(user_id).get()
-        if user_doc.exists:
-            return user_doc.to_dict()
+        # user_doc = await db.collection("users").document(user_id).get()
+        user_doc = db.collection("users").where("user_id", "==", user_id).get()
+        if user_doc:
+            return user_doc[0].to_dict()
         return None
     except Exception as e:
         logger.error(f"Error getting user: {e}")
@@ -97,13 +101,18 @@ async def send_notifications(
         # Save to global notifications collection with image URL if available
         if image_url:
             notification = {
-                "deviceId": device_id,
                 "type": notification_type,
                 "duration": duration,
                 "time": start_time,
                 "imageUrl": image_url,
             }
-            notification_ref = await db.collection("notifications").add(notification)
+            # notification_ref = await db.collection("notifications").add(notification)
+            notification_ref = (
+                await db.collection("devices")
+                .document(device_id)
+                .collection("notifications")
+                .add(notification)
+            )
             notification_id = notification_ref.id
 
             # Get all connections for this device
@@ -219,6 +228,14 @@ async def send_fcm_notification(token, message):
                 title=message["title"], body=message["body"]
             ),
             data=message["data"],
+            android=messaging.AndroidConfig(
+                priority="high",
+                notification=messaging.AndroidNotification(
+                    priority="high",
+                    channel_id="default",
+                    sound="notification.mp3",
+                ),
+            ),
             token=token,
         )
 

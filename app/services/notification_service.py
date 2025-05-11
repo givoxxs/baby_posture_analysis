@@ -94,9 +94,9 @@ async def send_notifications(
             "time": start_time,
         }
 
-        await db.collection("devices").document(device_id).collection(
-            "pushnotifications"
-        ).add(push_notification)
+        # await db.collection("devices").document(device_id).collection(
+        #     "pushnotifications"
+        # ).add(push_notification)
 
         # Save to global notifications collection with image URL if available
         if image_url:
@@ -252,20 +252,73 @@ async def get_device_thresholds(device_id):
     """Get device thresholds from Firestore"""
     try:
         # Create query
-        query = db.collection("devices").where("id", "==", device_id)
+        device_doc = await db.collection("devices").document(device_id).get()
         logger.info(f"Querying device thresholds for ID: {device_id}")
 
-        # Execute query and get results
-        device_docs = await query.get()
-        logger.info(f"Device documents found: {len(device_docs)}")
-
         # Check results
-        if not device_docs or len(device_docs) == 0:
+        if not device_doc.exists:
             logger.warning(f"No device found with ID: {device_id}")
-            return None
+            return {
+                "sideThreshold": 10,
+                "proneThreshold": 10,
+                "noBlanketThreshold": 10,
+            }  # Default values
 
-        # Convert first document to dict
-        return device_docs[0].to_dict()
+        # Convert document to dict
+        device_data = device_doc.to_dict()
+        thresholds = {
+            "sideThreshold": device_data.get("sideThreshold", 10),
+            "proneThreshold": device_data.get("proneThreshold", 10),
+            "noBlanketThreshold": device_data.get("noBlanketThreshold", 10),
+        }
+        logger.info(f"Retrieved thresholds for device {device_id}: {thresholds}")
+        return thresholds
     except Exception as e:
         logger.error(f"Error getting device thresholds: {e}")
+        return {
+            "sideThreshold": 10,
+            "proneThreshold": 10,
+            "noBlanketThreshold": 10,
+        }  # Default values in case of error
+
+
+def setup_device_thresholds_listener(device_id, callback):
+    """
+    Set up a real-time listener for threshold changes in Firestore
+
+    Args:
+        device_id: The device ID to monitor
+        callback: Function to call when thresholds are updated
+                  Function signature: callback(thresholds_dict)
+
+    Returns:
+        Firestore listener object that can be used to unsubscribe
+    """
+    try:
+        # Get reference to the device document
+        doc_ref = db.collection("devices").document(device_id)
+
+        # Define callback function for the listener
+        def on_snapshot(doc_snapshot, changes, read_time):
+            try:
+                # For document listener, doc_snapshot is the document itself, not a list
+                if doc_snapshot.exists:
+                    device_data = doc_snapshot.to_dict()
+                    thresholds = {
+                        "sideThreshold": device_data.get("sideThreshold", 10),
+                        "proneThreshold": device_data.get("proneThreshold", 10),
+                        "noBlanketThreshold": device_data.get("noBlanketThreshold", 10),
+                    }
+                    logger.info(
+                        f"Thresholds updated for device {device_id}: {thresholds}"
+                    )
+                    # Call the provided callback with the new thresholds
+                    callback(thresholds)
+            except Exception as e:
+                logger.error(f"Error in threshold listener callback: {e}")
+
+        # Set up the listener
+        return doc_ref.on_snapshot(on_snapshot)
+    except Exception as e:
+        logger.error(f"Error setting up threshold listener: {e}")
         return None

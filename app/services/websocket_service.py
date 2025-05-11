@@ -1,9 +1,11 @@
 from typing import Dict, Any
+import asyncio
 from fastapi import WebSocket, WebSocketDisconnect
 from app.services.analysis_service import get_singleton_analysis_service
 from app.services.device_state import DeviceState
 from app.services.notification_service import (
     get_device_thresholds,
+    setup_device_thresholds_listener,
     upload_to_cloudinary,
     send_notifications,
 )
@@ -37,6 +39,40 @@ class WebSocketHandler:
     def __init__(self):
         self.devices = {}
         self.manager = ConnectionManager()
+        self.threshold_listeners = {}
+
+    def update_thresholds(self, device_id, new_thresholds):
+        """
+        Callback function for threshold changes
+        Updates the device thresholds when they change in Firebase
+        """
+        if device_id in self.devices:
+            logger.info(f"Updating thresholds for device {device_id}: {new_thresholds}")
+            device_state = self.devices[device_id]
+            device_state.side_threshold = new_thresholds.get(
+                "sideThreshold", device_state.side_threshold
+            )
+            device_state.prone_threshold = new_thresholds.get(
+                "proneThreshold", device_state.prone_threshold
+            )
+            device_state.no_blanket_threshold = new_thresholds.get(
+                "noBlanketThreshold", device_state.no_blanket_threshold
+            )
+
+            # Send notification to device about threshold updates
+            asyncio.create_task(
+                self.manager.send_message(
+                    device_id,
+                    {
+                        "type": "threshold_update",
+                        "thresholds": {
+                            "sideThreshold": device_state.side_threshold,
+                            "proneThreshold": device_state.prone_threshold,
+                            "noBlanketThreshold": device_state.no_blanket_threshold,
+                        },
+                    },
+                )
+            )
 
     async def handle_connection(self, websocket: WebSocket, device_id: str):
         try:
@@ -57,6 +93,16 @@ class WebSocketHandler:
 
             device_state = DeviceState(device_id, thresholds)
             self.devices[device_id] = device_state
+
+            # Set up threshold listener
+            listener = setup_device_thresholds_listener(
+                device_id,
+                lambda new_thresholds: self.update_thresholds(
+                    device_id, new_thresholds
+                ),
+            )
+            self.threshold_listeners[device_id] = listener
+            logger.info(f"Threshold listener set up for device {device_id}")
 
             while True:
                 try:
@@ -279,12 +325,36 @@ class WebSocketHandler:
             )
         finally:
             try:
+                # Clean up the Firestore threshold listener if it exists
+                if device_id in self.threshold_listeners:
+                    logger.info(f"Removing threshold listener for device {device_id}")
+                    # Call .close() or .unsubscribe() on the listener to clean up the Firebase connection
+                    listener = self.threshold_listeners[device_id]
+                    if listener:
+                        try:
+                            listener.unsubscribe()
+                        except:
+                            # Sometimes .unsubscribe() might not be available, try .close()
+                            try:
+                                listener.close()
+                            except Exception as listener_error:
+                                logger.error(
+                                    f"Error closing threshold listener: {listener_error}"
+                                )
+                    # Remove the listener from the dictionary
+                    del self.threshold_listeners[device_id]
+
+                # Remove device from the active devices list
                 if device_id in self.devices:
                     del self.devices[device_id]
                     logger.info(
                         f"Device {device_id} disconnected and removed from active devices"
                     )
+
+                # Disconnect the WebSocket
                 self.manager.disconnect(device_id)
+
+                logger.info(f"Cleanup completed for device {device_id}")
             except Exception as cleanup_error:
                 logger.error(
                     f"Error during cleanup for device {device_id}: {cleanup_error}"

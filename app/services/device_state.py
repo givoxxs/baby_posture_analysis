@@ -10,15 +10,15 @@ class DeviceState:
     def __init__(self, device_id, thresholds):
         self.device_id = device_id
         self.side_threshold = thresholds.get(
-            "sideThreshold", os.getenv("SIDE_THRESHOLD", 30)
+            "sideThreshold", int(os.getenv("SIDE_THRESHOLD", 30))
         )
         self.prone_threshold = thresholds.get(
-            "proneThreshold", os.getenv("PRONE_THRESHOLD", 40)
+            "proneThreshold", int(os.getenv("PRONE_THRESHOLD", 40))
         )
         self.no_blanket_threshold = thresholds.get(
-            "noBlanketThreshold", os.getenv("NO_BLANKET_THRESHOLD", 100)
+            "noBlanketThreshold", int(os.getenv("NO_BLANKET_THRESHOLD", 100))
         )
-        self.max_history = os.getenv("MAX_HISTORY", 5)
+        self.max_history = int(os.getenv("MAX_HISTORY", 5))
         self.position_baby = {
             "position": "",
             "count": 0,

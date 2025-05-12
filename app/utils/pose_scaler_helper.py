@@ -29,7 +29,7 @@ class PoseScalerHelper:
         # Tạo DataFrame với đúng số lượng cột và giá trị
         df_keypoints = pd.DataFrame([columns_values], columns=columns_name)
 
-        center = self.find_center_of_babay(df_keypoints)
+        center = self.find_center_of_baby(df_keypoints)
 
         # dịch các điểm về tâm của cơ thể
         distance_shifting = (0 - center[0], 0 - center[1])
@@ -44,7 +44,7 @@ class PoseScalerHelper:
 
         return df_keypoints
 
-    def find_center_of_babay(self, df_keypoints):
+    def find_center_of_baby(self, df_keypoints):
         left_hip = (df_keypoints["left_hip_x"], df_keypoints["left_hip_y"])
         right_hip = (df_keypoints["right_hip_x"], df_keypoints["right_hip_y"])
 

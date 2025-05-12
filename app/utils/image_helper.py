@@ -2,6 +2,9 @@ import numpy as np
 import cv2
 from PIL import Image
 from typing import Tuple
+import logging
+
+logger = logging.getLogger(__name__)
 
 
 class Image_Helper:
@@ -21,6 +24,8 @@ class Image_Helper:
 
         new_img = Image.new("RGB", new_size, (0, 0, 0))
 
+        # Resize the original image to fit within the new size
+        logger.info(f"Resizing image from {original} to {new_size}")
         new_img.paste(
             img_pil, ((max_size - original[0]) // 2, (max_size - original[1]) // 2)
         )

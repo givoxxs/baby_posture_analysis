@@ -10,11 +10,11 @@ from dotenv import load_dotenv
 from pyngrok import ngrok
 import warnings
 
-ngrok.set_auth_token(os.getenv("NGROK_AUTHTOKEN"))
-public_url = ngrok.connect(8080)
-print(f"Public URL: {public_url}")
-
 load_dotenv()
+
+ngrok.set_auth_token(os.getenv("NGROK_AUTHTOKEN"))
+public_url = ngrok.connect(os.getenv("API_PORT"))
+print(f"Public URL: {public_url}")
 
 # Disable GPU for MediaPipe
 os.environ["MEDIAPIPE_DISABLE_GPU"] = "1"
@@ -47,17 +47,15 @@ logging.basicConfig(
 logger = logging.getLogger("app.main")
 logger.info("Logging configured successfully")
 
-# ngrok.set_auth_token(os.getenv("NGROK_AUTHTOKEN"))
-# public_url = ngrok.connect(8080)
-# logger.info(f"Public URL: {public_url}")
-
 from app.api import analyze, video_analyze, websocket
 
 # Create FastAPI app
 app = FastAPI(
-    title="Baby Posture Analysis",
-    description="API for analyzing baby posture from images and videos",
-    version="1.0.0",
+    title=os.getenv("API_TITLE", "Baby Posture Analysis"),
+    description=os.getenv(
+        "API_DESCRIPTION", "API for analyzing baby posture from images and videos"
+    ),
+    version=os.getenv("API_VERSION", "1.0.0"),
 )
 
 # CORS middleware
@@ -94,4 +92,9 @@ async def read_index():
 if __name__ == "__main__":
     import uvicorn
 
-    uvicorn.run(app, host="0.0.0.0", port=8080, log_level="info")
+    uvicorn.run(
+        app,
+        host=os.getenv("API_HOST", "0.0.0.0"),
+        port=int(os.getenv("API_PORT", 8080)),
+        log_level="info",
+    )

@@ -97,7 +97,7 @@ The system follows a modular pipeline architecture:
    Create an `.env` file in the project root with the following variables:
    ```
    API_HOST=0.0.0.0
-   API_PORT=8000
+   API_PORT=8080
    ```
 
 ## 🖥️ Usage
@@ -106,7 +106,7 @@ The system follows a modular pipeline architecture:
 
 1. **Run the API server**:
    ```bash
-   uvicorn app.main:app --reload --host 0.0.0.0 --port 8000
+   uvicorn app.main:app --reload --host 0.0.0.0 --port 8080
    ```
    Or simply use:
    ```bash
@@ -116,14 +116,14 @@ The system follows a modular pipeline architecture:
 2. **Access the API documentation**:
    Open your web browser and navigate to:
    ```
-   http://localhost:8000/docs
+   http://localhost:8080/docs
    ```
    This provides interactive Swagger UI documentation for testing all API endpoints.
 
 3. **Test with the web interface**:
    Open your browser and go to:
    ```
-   http://localhost:8000
+   http://localhost:8080
    ```
    The simple web interface allows you to upload images and visualize the analysis results.
 
@@ -216,6 +216,6 @@ This project is licensed under the MIT License - see the LICENSE file for detail
 
 ## 📧 Contact
 
-Project Developer - [Your Name](mailto:your.email@example.com)
+Project Developer - [Phan Văn Toàn](mailto:phanvantoan.contact@gmail.com)
 
-Project Link: [https://github.com/yourusername/baby_posture_analysis](https://github.com/yourusername/baby_posture_analysis)
+Project Link: [https://github.com/givoxxs/baby_posture_analysis](https://github.com/givoxxs/baby_posture_analysis)

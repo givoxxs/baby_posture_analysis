@@ -78,7 +78,7 @@ The system follows a modular pipeline architecture:
 
 1. **Clone the repository**:
    ```bash
-   git clone https://github.com/yourusername/baby_posture_analysis.git
+   git clone https://github.com/givoxxs/baby_posture_analysis.git
    cd baby_posture_analysis
    ```
 
@@ -94,21 +94,43 @@ The system follows a modular pipeline architecture:
    ```
 
 4. **Environment configuration**:
-   Create an `.env` file in the project root with the following variables:
+   Copy the `.env.example` file to create your own `.env` file:
+   ```bash
+   cp .env.example .env
    ```
+   Then edit the `.env` file to configure your settings:
+   ```
+   # Firebase Storage
+   CLOUDINARY_CLOUD_NAME=your_cloud_name   
+   CLOUDINARY_API_KEY=your_api_key
+   CLOUDINARY_API_SECRET=your_api_secret
+
+   # Ngrok Configuration (optional, for public URL access)
+   NGROK_AUTHTOKEN=your_ngrok_authtoken
+
+   # FastAPI Settings
    API_HOST=0.0.0.0
    API_PORT=8080
+   # Other settings...
    ```
 
 ## 🖥️ Usage
 
 ### Starting the Server
 
-1. **Run the API server**:
+You can start the server using one of the following methods:
+
+1. **Using the Python module directly**:
+   ```bash
+   python -m app.main
+   ```
+
+2. **Using Uvicorn with options from your `.env` file**:
    ```bash
    uvicorn app.main:app --reload --host 0.0.0.0 --port 8080
    ```
-   Or simply use:
+
+3. **Or simply with default configuration**:
    ```bash
    uvicorn app.main:app --reload
    ```

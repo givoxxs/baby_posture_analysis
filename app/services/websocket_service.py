@@ -1,269 +1,361 @@
-import json
+from typing import Dict, Any
 import asyncio
-import base64
-import time
-from datetime import datetime
-import cloudinary.uploader
-from app.config import db
+from fastapi import WebSocket, WebSocketDisconnect
 from app.services.analysis_service import get_singleton_analysis_service
-from google.cloud import firestore
-from google.cloud.firestore_v1.async_client import AsyncClient
+from app.services.device_state import DeviceState
+from app.services.notification_service import (
+    get_device_thresholds,
+    setup_device_thresholds_listener,
+    upload_to_cloudinary,
+    send_notifications,
+)
+import logging
+
+logger = logging.getLogger(__name__)
 
 analyze_service = get_singleton_analysis_service()
 
-class DeviceState:
-    def __init__(self, device_id, thresholds):
-        self.device_id = device_id
-        self.side_threshold = thresholds.get('sideThreshold', 10)
-        self.prone_threshold = thresholds.get('proneThreshold', 10)
-        self.no_blanket_threshold = thresholds.get('noBlanketThreshold', 10)
-        self.max_history = 5
-        self.position_baby = {
-            'position': '',
-            'count': 0,
-            'first_time': None,
-            'last_time': None
-        }
-        self.blanket_baby = {
-            'is_covered': False,
-            'count': 0,
-            'first_time': None,
-            'last_time': None
-        }
-        self.posture_history = []
-        
-        self.last_notification_time = {
-            'noBlanket': None,
-            'side': None,
-            'prone': None
-        }
-        
-    async def update_position_baby(self, position, timestamp):
-        if self.position_baby['position'] == position:
-            self.position_baby['count'] += 1
-            self.position_baby['last_time'] = timestamp
-        else:
-            self.position_baby['position'] = position
-            self.position_baby['count'] = 1
-            self.position_baby['first_time'] = timestamp
-            self.position_baby['last_time'] = timestamp
-            await send_event_to_firestore(self.device_id, position, timestamp)
-            
-    async def update_blanket_baby(self, is_covered, timestamp):
-        if self.blanket_baby['is_covered'] == is_covered:
-            self.blanket_baby['count'] += 1
-            self.blanket_baby['last_time'] = timestamp
-        else:
-            self.blanket_baby['is_covered'] = is_covered
-            self.blanket_baby['count'] = 1
-            self.blanket_baby['last_time'] = timestamp  
-            if is_covered == False:
-                await send_event_to_firestore(self.device_id, 'no_blanket', timestamp)
-            else:
-                await send_event_to_firestore(self.device_id, 'has_blanket', timestamp)
 
-    # tính số giây giữa 2 thời điểm
-    def calc_time(self, start_time, end_time):
-        if start_time is None or end_time is None:
-            return 0
-        start_time = datetime.fromisoformat(start_time)
-        end_time = datetime.fromisoformat(end_time)
-        res = (end_time - start_time).total_seconds() 
-        # ép kiểu về số nguyên
-        return int(res)
-            
-    def check_position_baby(self):
-        if self.position_baby['position'] == 'side':
-            if self.position_baby['count'] >= self.side_threshold and self.position_baby['last_time'] is not None and self.calc_time(self.position_baby['first_time'], self.position_baby['last_time']) > (self.side_threshold * 90 / 100):
-                return True
-            else :
-                return False
-        elif self.position_baby['position'] == 'prone':
-            if self.position_baby['count'] >= self.prone_threshold and self.position_baby['last_time'] is not None and self.calc_time(self.position_baby['first_time'], self.position_baby['last_time']) > (self.prone_threshold * 90 / 100):
-                return True
-            else:
-                return False
-    def check_blanket_baby(self):
-        if self.blanket_baby['is_covered'] == False:
-            if self.blanket_baby['count'] >= self.no_blanket_threshold and self.blanket_baby['last_time'] is not None and self.calc_time(self.blanket_baby['first_time'], self.blanket_baby['last_time']) > (self.no_blanket_threshold * 90 / 100):
-                return True
-            else:
-                return False
-        else:
-            return False
+class ConnectionManager:
+    def __init__(self):
+        self.active_connections: Dict[str, WebSocket] = {}
 
-async def get_device_thresholds(device_id):
-    try:
-        # Create query
-        query = db.collection('devices').where('id', '==', device_id)
-        print(f"Querying device thresholds for ID: {device_id}")
-        print(f"Query: {query}")
-        # Execute query and get results
-        device_docs = await query.get()
-        print(f"Device documents found: {len(device_docs)}")
-        print(f"Device documents: {device_docs[0].to_dict() if device_docs else 'No documents'}")
-        # Check results
-        if not device_docs or len(device_docs) == 0:
-            print(f"No device found with ID: {device_id}")
-            return None
-        # Convert first document to dict
-        return device_docs[0].to_dict()
-    except Exception as e:
-        print(f"Error getting device thresholds: {e}")
-        return None
+    async def connect(self, websocket: WebSocket, device_id: str):
+        await websocket.accept()
+        self.active_connections[device_id] = websocket
+        logger.info(f"Device {device_id} connected")
 
-async def upload_to_cloudinary(image_base64):
-    try:
-        result = cloudinary.uploader.upload(f"data:image/jpeg;base64,{image_base64}")
-        return result['secure_url']
-    except Exception as e:
-        print(f"Error uploading to Cloudinary: {e}")
-        return None
+    def disconnect(self, device_id: str):
+        if device_id in self.active_connections:
+            del self.active_connections[device_id]
+        # logger.info(f"Device {device_id} disconnected")
 
-async def send_event_to_firestore(device_id, event_type, start_time):
-    try:
-        event = {
-            'deviceId': device_id,
-            'type': event_type,
-            'time': start_time
-        }
-        await db.collection('devices').document(device_id).collection('events').add(event)
-        print(f"Event sent to Firestore: {event}")
-    except Exception as e:
-        print(f"Error sending event to Firestore: {e}")
+    async def send_message(self, device_id: str, message: Dict[str, Any]):
+        if device_id in self.active_connections:
+            await self.active_connections[device_id].send_json(message)
 
-async def send_notifications(device_id, event_type, duration, start_time, image_url=None):
-    # Send to PushNotification collection
-    push_notification = {
-        'deviceId': device_id,
-        'type': event_type,
-        'duration': duration,
-        'time': start_time
-    }
-    await db.collection('devices').document(device_id).collection('pushnotifications').add(push_notification)
-
-    # Send to Notification collection with image
-    if image_url:
-        notification = {
-            'deviceId': device_id,
-            'type': event_type,
-            'duration': duration,
-            'time': start_time,
-            'imageUrl': image_url
-        }
-        await db.collection('Notification').add(notification)
 
 class WebSocketHandler:
     def __init__(self):
         self.devices = {}
+        self.manager = ConnectionManager()
+        self.threshold_listeners = {}
 
-    async def handle_connection(self, websocket):
-        device_id = None
+    def update_thresholds(self, device_id, new_thresholds):
+        """
+        Callback function for threshold changes
+        Updates the device thresholds when they change in Firebase
+        """
+        if device_id in self.devices:
+            logger.info(f"Updating thresholds for device {device_id}: {new_thresholds}")
+            device_state = self.devices[device_id]
+            device_state.side_threshold = new_thresholds.get(
+                "sideThreshold", device_state.side_threshold
+            )
+            device_state.prone_threshold = new_thresholds.get(
+                "proneThreshold", device_state.prone_threshold
+            )
+            device_state.no_blanket_threshold = new_thresholds.get(
+                "noBlanketThreshold", device_state.no_blanket_threshold
+            )
+
+            # Send notification to device about threshold updates
+            asyncio.create_task(
+                self.manager.send_message(
+                    device_id,
+                    {
+                        "type": "threshold_update",
+                        "thresholds": {
+                            "sideThreshold": device_state.side_threshold,
+                            "proneThreshold": device_state.prone_threshold,
+                            "noBlanketThreshold": device_state.no_blanket_threshold,
+                        },
+                    },
+                )
+            )
+
+    async def handle_connection(self, websocket: WebSocket, device_id: str):
         try:
-            # First message should be device ID
-            device_id = await websocket.receive_text()
-            print(f"Device connected with ID: {device_id}")
+            await self.manager.connect(websocket, device_id)
+            logger.info(f"Device connected with ID: {device_id}")
 
-            # Get device thresholds from Firebase
             thresholds = await get_device_thresholds(device_id)
             if not thresholds:
+                await self.manager.send_message(
+                    device_id,
+                    {
+                        "type": "error",
+                        "message": "Failed to retrieve device thresholds",
+                    },
+                )
                 await websocket.close()
                 return
 
-            # Initialize device state
             device_state = DeviceState(device_id, thresholds)
             self.devices[device_id] = device_state
 
+            # Set up threshold listener
+            listener = setup_device_thresholds_listener(
+                device_id,
+                lambda new_thresholds: self.update_thresholds(
+                    device_id, new_thresholds
+                ),
+            )
+            self.threshold_listeners[device_id] = listener
+            logger.info(f"Threshold listener set up for device {device_id}")
+
             while True:
-                data = await websocket.receive_json()
-                
-                # Extract image and timestamp
-                image_base64 = data.get('image_base64')
-                timestamp = data.get('timestamp')
-                print(f'timestamp: {timestamp}')
+                try:
+                    data = await websocket.receive_json()
+                    image_base64 = data.get("image_base64")
+                    timestamp = data.get("timestamp")
+                    logger.info(f"timestamp: {timestamp}")
 
-                if not image_base64 or not timestamp:
-                    continue
+                    if not image_base64 or not timestamp:
+                        await self.manager.send_message(
+                            device_id,
+                            {
+                                "type": "error",
+                                "message": "Missing image_base64 or timestamp",
+                            },
+                        )
+                        continue
 
-                # Analyze image
-                analysis_result = await analyze_service.analyze_image_base64(image_base64)
-                print(f"Image analysis result: {analysis_result.get('success')}")
-                if analysis_result.get('success') is False:
-                    print(f"Image analysis failed: {analysis_result.get('message')}")
-                    continue
-                # print(f"Image analysis result: {analysis_result}")
-                posture = analysis_result.get('analysis', {}).get('position')
-                print(f"Posture detected: {posture}")
-                if not posture:
-                    print("No posture detected in the image.")
-                    continue
+                    analysis_result = await analyze_service.analyze_image_base64(
+                        image_base64
+                    )
+                    logger.info(
+                        f"Image analysis result: {analysis_result.get('success')}"
+                    )
+                    if analysis_result.get("success") is False:
+                        logger.error(
+                            f"Image analysis failed: {analysis_result.get('message')}"
+                        )
+                        await self.manager.send_message(
+                            device_id,
+                            {
+                                "type": "error",
+                                "message": "Image analysis failed",
+                                "details": analysis_result.get("message"),
+                            },
+                        )
+                        continue
 
-                if posture == 'Nằm ngửa':
-                    posture = 'back'
-                elif posture == 'Nằm sấp':
-                    posture = 'prone'
-                elif posture == 'Nằm nghiêng':
-                    posture = 'side'
-                else:
-                    posture = 'unknown'
-                    
-                if posture == 'unknown':
-                    print("Unknown posture detected.")
-                    continue
-                    
-                has_blanket = analysis_result['blanket']['is_covered']
-                print(f"Blanket status: {has_blanket}")
-                
-                # Update posture history
-                device_state.posture_history.append({
-                    'posture': posture,
-                    'has_blanket': has_blanket,
-                    'timestamp': timestamp
-                })
-                
-                if len(device_state.posture_history) > device_state.max_history:
-                    device_state.posture_history.pop(0)
-                
-                # Update blanket history
-                if len(device_state.posture_history) < device_state.max_history:
-                    await device_state.update_position_baby(posture, timestamp)
-                else:
-                    # check xem có đủ 3 posture trong max_history không, chỉ cần có 3 posture là đủ
-                    side_count = sum(1 for p in device_state.posture_history if p['posture'] == posture)
-                    if side_count >= 3:
+                    posture = analysis_result.get("analysis", {}).get("position")
+                    logger.info(f"Posture detected: {posture}")
+                    if not posture:
+                        logger.warning("No posture detected in the image.")
+                        await self.manager.send_message(
+                            device_id,
+                            {
+                                "type": "error",
+                                "message": "No posture detected in the image",
+                            },
+                        )
+                        continue
+
+                    posture_map = {
+                        "Nằm ngửa": "back",
+                        "Nằm sấp": "prone",
+                        "Nằm nghiêng": "side",
+                    }
+                    posture = posture_map.get(posture, "unknown")
+                    if posture == "unknown":
+                        logger.warning("Unknown posture detected.")
+                        await self.manager.send_message(
+                            device_id,
+                            {"type": "error", "message": "Unknown posture detected"},
+                        )
+                        continue
+
+                    if "is_covered" not in analysis_result:
+                        logger.warning(
+                            "Error: 'is_covered' key is missing in analysis_result"
+                        )
+                        has_blanket = False
+                    else:
+                        blanket_data = analysis_result.get("analysis").get(
+                            "is_covered", False
+                        )
+                        logger.info(f"Blanket data: {blanket_data}")
+                        if not isinstance(blanket_data, bool):
+                            logger.warning("Error: 'blanket' data is not a boolean")
+                            has_blanket = False
+                        else:
+                            has_blanket = blanket_data
+                    logger.info(f"Blanket status: {has_blanket}")
+
+                    await self.manager.send_message(
+                        device_id,
+                        {
+                            "type": "analysis",
+                            "timestamp": timestamp,
+                            "posture": posture,
+                            "has_blanket": has_blanket,
+                        },
+                    )
+
+                    device_state.posture_history.append(
+                        {
+                            "posture": posture,
+                            "has_blanket": has_blanket,
+                            "timestamp": timestamp,
+                        }
+                    )
+
+                    if len(device_state.posture_history) > device_state.max_history:
+                        device_state.posture_history.pop(0)
+
+                    if len(device_state.posture_history) < device_state.max_history:
                         await device_state.update_position_baby(posture, timestamp)
-                
-                # Update blanket status
-                if len(device_state.posture_history) < device_state.max_history:
-                    await device_state.update_blanket_baby(has_blanket, timestamp)
-                else:
-                    # check xem có đủ 3 blanket trong max_history không, chỉ cần có 3 blanket là đủ
-                    blanket_count = sum(1 for p in device_state.posture_history if p['has_blanket'] == has_blanket)
-                    if blanket_count >= 3:
-                       await device_state.update_blanket_baby(has_blanket, timestamp)
-                
-                check_position = device_state.check_position_baby()
-                if check_position:
-                    now_position = device_state.position_baby['position']
-                    if device_state.last_notification_time[now_position] is None or device_state.calc_time(device_state.last_notification_time[now_position], timestamp) > 10:
-                        device_state.last_notification_time[now_position] = timestamp
-                        image_url = await upload_to_cloudinary(image_base64)
-                        await send_notifications(device_id, now_position, device_state.position_baby['count'], timestamp, image_url)
-                        print(f"Notification sent for {now_position} position.")
-                
-                # check_blanket = device_state.check_blanket_baby()
-                # if check_blanket is False:
-                #     if device_state.last_notification_time['noBlanket'] is None or device_state.calc_time(device_state.last_notification_time['noBlanket'], timestamp) > 10:
-                #         device_state.last_notification_time['noBlanket'] = timestamp
-                #         image_url = await upload_to_cloudinary(image_base64)
-                #         await send_notifications(device_id, 'noBlanket', device_state.blanket_baby['count'], timestamp, image_url)
-                #         print(f"Notification sent for no blanket.")
+                    else:
+                        side_count = sum(
+                            1
+                            for p in device_state.posture_history
+                            if p["posture"] == posture
+                        )
+                        if side_count >= 3:
+                            await device_state.update_position_baby(posture, timestamp)
+
+                    if len(device_state.posture_history) < device_state.max_history:
+                        await device_state.update_blanket_baby(has_blanket, timestamp)
+                    else:
+                        blanket_count = sum(
+                            1
+                            for p in device_state.posture_history
+                            if p["has_blanket"] == has_blanket
+                        )
+                        if blanket_count >= 3:
+                            await device_state.update_blanket_baby(
+                                has_blanket, timestamp
+                            )
+
+                    check_position = device_state.check_position_baby()
+                    if check_position:
+                        now_position = device_state.position_baby["position"]
+                        if (
+                            device_state.last_notification_time[now_position] is None
+                            or device_state.calc_time(
+                                device_state.last_notification_time[now_position],
+                                timestamp,
+                            )
+                            > 10
+                        ):
+                            device_state.last_notification_time[now_position] = (
+                                timestamp
+                            )
+                            image_url = await upload_to_cloudinary(image_base64)
+                            await send_notifications(
+                                device_id,
+                                now_position,
+                                device_state.position_baby["count"],
+                                timestamp,
+                                image_url,
+                            )
+                            logger.info(
+                                f"Notification sent for {now_position} position."
+                            )
+                            await self.manager.send_message(
+                                device_id,
+                                {
+                                    "type": "alert",
+                                    "timestamp": timestamp,
+                                    "message": f"Position alert: {now_position}",
+                                    "position": now_position,
+                                    "image_url": image_url,
+                                },
+                            )
+
+                    check_blanket = device_state.check_blanket_baby()
+                    if check_blanket:
+                        if (
+                            device_state.last_notification_time["noBlanket"] is None
+                            or device_state.calc_time(
+                                device_state.last_notification_time["noBlanket"],
+                                timestamp,
+                            )
+                            > 10
+                        ):
+                            device_state.last_notification_time["noBlanket"] = timestamp
+                            image_url = await upload_to_cloudinary(image_base64)
+                            await send_notifications(
+                                device_id,
+                                "no_blanket",
+                                device_state.blanket_baby["count"],
+                                timestamp,
+                                image_url,
+                            )
+                            logger.info("Notification sent for no blanket.")
+                            await self.manager.send_message(
+                                device_id,
+                                {
+                                    "type": "alert",
+                                    "timestamp": timestamp,
+                                    "message": "No blanket detected",
+                                    "image_url": image_url,
+                                },
+                            )
+
+                except WebSocketDisconnect:
+                    logger.info(f"Device {device_id} disconnected")
+                    break
+                except Exception as e:
+                    logger.error(f"Error processing data: {str(e)}")
+                    await self.manager.send_message(
+                        device_id,
+                        {
+                            "type": "error",
+                            "message": "Error processing data",
+                            "details": str(e),
+                        },
+                    )
+                    continue
+
+        except WebSocketDisconnect:
+            logger.info(f"Device {device_id} disconnected during handshake")
         except Exception as e:
-            print(f"Error in WebSocket connection: {e}")
+            logger.error(f"WebSocket connection error: {e}")
+            await self.manager.send_message(
+                device_id,
+                {
+                    "type": "error",
+                    "message": "WebSocket connection error",
+                    "details": str(e),
+                },
+            )
         finally:
             try:
-                if device_id is not None and device_id in self.devices:
+                # Clean up the Firestore threshold listener if it exists
+                if device_id in self.threshold_listeners:
+                    logger.info(f"Removing threshold listener for device {device_id}")
+                    # Call .close() or .unsubscribe() on the listener to clean up the Firebase connection
+                    listener = self.threshold_listeners[device_id]
+                    if listener:
+                        try:
+                            listener.unsubscribe()
+                        except:
+                            # Sometimes .unsubscribe() might not be available, try .close()
+                            try:
+                                listener.close()
+                            except Exception as listener_error:
+                                logger.error(
+                                    f"Error closing threshold listener: {listener_error}"
+                                )
+                    # Remove the listener from the dictionary
+                    del self.threshold_listeners[device_id]
+
+                # Remove device from the active devices list
+                if device_id in self.devices:
                     del self.devices[device_id]
-                    print(f"Device {device_id} disconnected and removed from active devices")
+                    logger.info(
+                        f"Device {device_id} disconnected and removed from active devices"
+                    )
+
+                # Disconnect the WebSocket
+                self.manager.disconnect(device_id)
+
+                logger.info(f"Cleanup completed for device {device_id}")
             except Exception as cleanup_error:
-                print(f"Error during cleanup for device {device_id}: {cleanup_error}")
+                logger.error(
+                    f"Error during cleanup for device {device_id}: {cleanup_error}"
+                )

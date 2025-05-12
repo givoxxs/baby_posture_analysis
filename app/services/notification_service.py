@@ -35,9 +35,6 @@ async def send_event_to_firestore(device_id, event_type, start_time):
 async def get_device_connections(device_id):
     """Get all connections for a device"""
     try:
-        # connections_ref = (
-        #     db.collection("devices").document(device_id).collection("connections")
-        # )
         connections_ref = db.collection("connections").where(
             "device_id", "==", device_id
         )
@@ -51,7 +48,6 @@ async def get_device_connections(device_id):
 async def get_user(user_id):
     """Get user document by ID"""
     try:
-        # user_doc = await db.collection("users").document(user_id).get()
         user_doc = db.collection("users").where("user_id", "==", user_id).get()
         if user_doc:
             return user_doc[0].to_dict()
@@ -93,10 +89,6 @@ async def send_notifications(
             "duration": duration,
             "time": start_time,
         }
-
-        # await db.collection("devices").document(device_id).collection(
-        #     "pushnotifications"
-        # ).add(push_notification)
 
         # Save to global notifications collection with image URL if available
         if image_url:

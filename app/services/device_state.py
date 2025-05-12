@@ -1,14 +1,24 @@
 from datetime import datetime
 from app.services.notification_service import send_event_to_firestore
+import os
+from dotenv import load_dotenv
+
+load_dotenv()
 
 
 class DeviceState:
     def __init__(self, device_id, thresholds):
         self.device_id = device_id
-        self.side_threshold = thresholds.get("sideThreshold", 10)
-        self.prone_threshold = thresholds.get("proneThreshold", 10)
-        self.no_blanket_threshold = thresholds.get("noBlanketThreshold", 10)
-        self.max_history = 5
+        self.side_threshold = thresholds.get(
+            "sideThreshold", int(os.getenv("SIDE_THRESHOLD", 30))
+        )
+        self.prone_threshold = thresholds.get(
+            "proneThreshold", int(os.getenv("PRONE_THRESHOLD", 40))
+        )
+        self.no_blanket_threshold = thresholds.get(
+            "noBlanketThreshold", int(os.getenv("NO_BLANKET_THRESHOLD", 100))
+        )
+        self.max_history = int(os.getenv("MAX_HISTORY", 5))
         self.position_baby = {
             "position": "",
             "count": 0,

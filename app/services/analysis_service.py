@@ -13,8 +13,11 @@ from PIL import Image
 import io
 import base64
 import uuid
+from dotenv import load_dotenv
 
 from app.utils.pipeline_analysis import BabyPostureAnalysisPipeline
+
+load_dotenv()
 
 logger = logging.getLogger(__name__)
 
@@ -175,19 +178,27 @@ _analysis_service_instance = None
 
 
 def get_singleton_analysis_service():
-    """
-    Get or create a singleton instance of the AnalysisService
-
-    Returns:
-        AnalysisService: The singleton instance
-    """
     global _analysis_service_instance
 
     if _analysis_service_instance is None:
-        # Determine paths based on the project structure
-        base_path = Path(os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
-        model_path = base_path / "models" / "random_forest.pkl"
-        scaler_path = base_path / "models" / "input_scaler.pkl"
+        # Get correct project root directory
+        base_path = Path(
+            os.path.dirname(os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
+        )
+
+        # Get paths from environment
+        model_path_env = os.getenv("MODEL_PATH", "app/models/random_forest.pkl")
+        scaler_path_env = os.getenv("SCALER_PATH", "app/models/input_scaler.pkl")
+
+        logger.info(f"MODEL_PATH: {model_path_env}")
+        logger.info(f"SCALER_PATH: {scaler_path_env}")
+
+        # Always combine with base_path for relative paths
+        model_path = base_path / model_path_env
+        scaler_path = base_path / scaler_path_env
+
+        logger.info(f"Looking for model at: {model_path}")
+        logger.info(f"Looking for scaler at: {scaler_path}")
 
         if not model_path.exists() or not scaler_path.exists():
             raise FileNotFoundError(

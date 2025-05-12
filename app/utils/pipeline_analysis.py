@@ -10,10 +10,13 @@ from typing import Dict, List, Tuple, Any, Optional
 import base64
 import os
 import logging
+from dotenv import load_dotenv
 
 from app.utils.image_helper import Image_Helper, Image_Rotation_Helper
 from app.utils.keypoints_helper import KeypointsExtractorHelper
 from app.utils.pose_scaler_helper import PoseScalerHelper
+
+load_dotenv()
 
 logger = logging.getLogger(__name__)
 
@@ -87,9 +90,10 @@ class BabyPostureAnalysisPipeline:
         # Khởi tạo pose detector từ MediaPipe
         self.pose = self.mp_pose.Pose(
             static_image_mode=True,
-            model_complexity=2,
-            enable_segmentation=True,
-            min_detection_confidence=0.5,
+            model_complexity=int(os.getenv("MODEL_COMPLEXITY", 2)),
+            enable_segmentation=os.getenv("ENABLE_SEGMENTATION", "True").lower()
+            == "true",
+            min_detection_confidence=float(os.getenv("MIN_DETECTION_CONFIDENCE", 0.5)),
         )
 
         # Khởi tạo các helper

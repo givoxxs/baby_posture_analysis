@@ -307,7 +307,9 @@ def setup_device_thresholds_listener(device_id, callback):
                     thresholds = {
                         "sideThreshold": device_data.get("sideThreshold", 10),
                         "proneThreshold": device_data.get("proneThreshold", 10),
-                        "noBlanketThreshold": device_data.get("noBlanketThreshold", 10),
+                        "noBlanketThreshold": device_data.get(
+                            "noBlanketThreshold", 100
+                        ),
                     }
                     logger.info(
                         f"Thresholds updated for device {device_id}: {thresholds}"

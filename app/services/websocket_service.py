@@ -180,21 +180,21 @@ class WebSocketHandler:
                         )
                         continue
 
-                    if "is_covered" not in analysis_result:
-                        logger.warning(
-                            "Error: 'is_covered' key is missing in analysis_result"
-                        )
+                    # if "is_covered" not in analysis_result:
+                    #     logger.warning(
+                    #         "Error: 'is_covered' key is missing in analysis_result"
+                    #     )
+                    #     has_blanket = False
+                    # else:
+                    blanket_data = analysis_result.get("analysis").get(
+                        "is_covered", False
+                    )
+                    logger.info(f"Blanket data: {blanket_data}")
+                    if not isinstance(blanket_data, bool):
+                        logger.warning("Error: 'blanket' data is not a boolean")
                         has_blanket = False
                     else:
-                        blanket_data = analysis_result.get("analysis").get(
-                            "is_covered", False
-                        )
-                        logger.info(f"Blanket data: {blanket_data}")
-                        if not isinstance(blanket_data, bool):
-                            logger.warning("Error: 'blanket' data is not a boolean")
-                            has_blanket = False
-                        else:
-                            has_blanket = blanket_data
+                        has_blanket = blanket_data
                     logger.info(f"Blanket status: {has_blanket}")
 
                     await self.manager.send_message(
@@ -251,16 +251,21 @@ class WebSocketHandler:
                                 device_state.last_notification_time[now_position],
                                 timestamp,
                             )
-                            > 10
+                            > 20
                         ):
                             device_state.last_notification_time[now_position] = (
                                 timestamp
                             )
                             image_url = await upload_to_cloudinary(image_base64)
+
                             await send_notifications(
                                 device_id,
                                 now_position,
-                                device_state.position_baby["count"],
+                                # device_state.position_baby["count"],
+                                device_state.calc_time(
+                                    device_state.position_baby["first_time"],
+                                    device_state.position_baby["last_time"],
+                                ),
                                 timestamp,
                                 image_url,
                             )
@@ -286,14 +291,18 @@ class WebSocketHandler:
                                 device_state.last_notification_time["noBlanket"],
                                 timestamp,
                             )
-                            > 10
+                            > 20
                         ):
                             device_state.last_notification_time["noBlanket"] = timestamp
                             image_url = await upload_to_cloudinary(image_base64)
                             await send_notifications(
                                 device_id,
                                 "no_blanket",
-                                device_state.blanket_baby["count"],
+                                # device_state.blanket_baby["count"],
+                                device_state.calc_time(
+                                    device_state.blanket_baby["first_time"],
+                                    device_state.blanket_baby["last_time"],
+                                ),
                                 timestamp,
                                 image_url,
                             )

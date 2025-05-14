@@ -1,13 +1,45 @@
 import json
 import cloudinary.uploader
 import firebase_admin
-from firebase_admin import messaging, firestore
-from datetime import datetime
-from google.protobuf.timestamp_pb2 import Timestamp
+from firebase_admin import messaging
+from datetime import datetime, timedelta, timezone
 from app.config import db
+from google.cloud.firestore_v1.base_query import FieldFilter
 import logging
 
 logger = logging.getLogger(__name__)
+
+# ...existing code...
+
+
+def convert_to_vietnam_timezone(timestamp):
+    """
+    Convert a timestamp to Vietnam timezone (UTC+7)
+
+    Args:
+        timestamp: A datetime object or ISO format string
+
+    Returns:
+        datetime: A datetime object in Vietnam timezone (UTC+7)
+    """
+    try:
+        if isinstance(timestamp, str):
+            # Convert ISO string to datetime object
+            timestamp = datetime.fromisoformat(timestamp)
+
+        # If timestamp has no timezone info, assume it's UTC
+        if timestamp.tzinfo is None:
+            timestamp = timestamp.replace(tzinfo=timezone.utc)
+
+        # Convert to Vietnam timezone (UTC+7)
+        vietnam_tz = timezone(timedelta(hours=7))
+        vietnam_time = timestamp.astimezone(vietnam_tz)
+
+        logger.info(f"Converted time to Vietnam timezone: {vietnam_time}")
+        return vietnam_time
+    except Exception as e:
+        logger.error(f"Error converting to Vietnam timezone: {e}")
+        return timestamp  # Return original timestamp if conversion fails
 
 
 async def upload_to_cloudinary(image_base64):
@@ -25,11 +57,7 @@ async def send_event_to_firestore(device_id, event_type, start_time):
     """Record an event in the device's events collection"""
     try:
         if isinstance(start_time, str):
-            start_time = (
-                firestore.SERVER_TIMESTAMP
-                if start_time == "now"
-                else Timestamp.from_datetime(datetime.fromisoformat(start_time))
-            )
+            start_time = convert_to_vietnam_timezone(start_time)
             logger.info(f"Converted start_time to Firestore timestamp: {start_time}")
         event = {"deviceId": device_id, "type": event_type, "time": start_time}
         await db.collection("devices").document(device_id).collection("events").add(
@@ -44,9 +72,11 @@ async def get_device_connections(device_id):
     """Get all connections for a device"""
     try:
         connections_ref = db.collection("connections").where(
-            "deviceId", "==", device_id
+            # "deviceId", "==", device_id
+            filter=FieldFilter("deviceId", "==", device_id)
         )
         connections = await connections_ref.get()
+        print(f"Retrieved connections for device {device_id}: {connections}")
         return [connection.to_dict() for connection in connections]
     except Exception as e:
         logger.error(f"Error getting device connections: {e}")
@@ -56,9 +86,15 @@ async def get_device_connections(device_id):
 async def get_user(user_id):
     """Get user document by ID"""
     try:
-        user_doc = db.collection("users").where("id", "==", user_id).get()
+        # user_query = db.collection("users").where("id", "==", user_id)
+        user_query = db.collection("users").where(
+            filter=FieldFilter("id", "==", user_id)
+        )
+        user_doc = await user_query.get()
         if user_doc:
             return user_doc[0].to_dict()
+
+        logger.warning(f"No user found with ID: {user_id}")
         return None
     except Exception as e:
         logger.error(f"Error getting user: {e}")
@@ -83,16 +119,18 @@ async def send_notifications(
         unix_timestamp = 0
 
         if isinstance(start_time, str):
-            dt = datetime.fromisoformat(start_time)
-            firestore_timestamp = Timestamp.from_datetime(dt)
-            unix_timestamp = int(dt.timestamp())
+            firestore_timestamp = datetime.fromisoformat(start_time)
+            # Convert to Vietnam timezone
+            firestore_timestamp = convert_to_vietnam_timezone(firestore_timestamp)
         elif isinstance(start_time, datetime):
-            firestore_timestamp = Timestamp.from_datetime(start_time)
-            unix_timestamp = int(start_time.timestamp())
+            firestore_timestamp = start_time
+            # Convert to Vietnam timezone
+            firestore_timestamp = convert_to_vietnam_timezone(firestore_timestamp)
         elif isinstance(start_time, int):
             # If it's already a Unix timestamp
-            firestore_timestamp = Timestamp.from_seconds(start_time)
-            unix_timestamp = start_time
+            firestore_timestamp = convert_to_vietnam_timezone(
+                datetime.fromtimestamp(start_time)
+            )
 
         # Map event types to notification types
         notification_type_map = {
@@ -102,26 +140,27 @@ async def send_notifications(
             "has_blanket": "Blanket",
         }
 
+        old_notification_type = event_type
+
         # Get notification type for the event
         notification_type = notification_type_map.get(event_type, event_type)
 
         # Save to global notifications collection with image URL if available
         if image_url:
             notification = {
-                "type": notification_type,
+                "type": old_notification_type,
                 "duration": duration,
-                # "time": start_time,
                 "time": firestore_timestamp,
                 "imageUrl": image_url,
             }
-            # notification_ref = await db.collection("notifications").add(notification)
-            notification_ref = (
+
+            update_time, doc_ref = (
                 await db.collection("devices")
                 .document(device_id)
                 .collection("notifications")
                 .add(notification)
             )
-            notification_id = notification_ref.id
+            notification_id = doc_ref.id
 
             # Get all connections for this device
             connections = await get_device_connections(device_id)
@@ -129,6 +168,7 @@ async def send_notifications(
             # For each connection, get the user and send notification to their FCM tokens
             for connection in connections:
                 user_id = connection.get("userId")
+                print(f"User ID: {user_id}")
                 if not user_id:
                     continue
 
@@ -147,19 +187,19 @@ async def send_notifications(
                     notification_type,
                     duration,
                 )
+
+                fcm_message_data = {
+                    "id": str(notification_id),
+                    "type": str(old_notification_type),
+                    "time": str(start_time),
+                    "duration": str(duration),
+                }
+
                 # Create the FCM message payload
                 fcm_message = {
                     "title": title,
                     "body": body,
-                    "data": {
-                        "id": notification_id,
-                        "type": notification_type,
-                        "time": unix_timestamp,
-                        # "time": int(
-                        #     datetime.fromisoformat(start_time).timestamp()
-                        # ),  # Convert to Unix timestamp
-                        "duration": duration,
-                    },
+                    "data": fcm_message_data,
                 }
 
                 # Send to all FCM tokens for this user

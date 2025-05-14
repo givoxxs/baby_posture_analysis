@@ -3,6 +3,7 @@ import cloudinary.uploader
 import firebase_admin
 from firebase_admin import messaging, firestore
 from datetime import datetime
+from google.protobuf.timestamp_pb2 import Timestamp
 from app.config import db
 import logging
 
@@ -27,9 +28,7 @@ async def send_event_to_firestore(device_id, event_type, start_time):
             start_time = (
                 firestore.SERVER_TIMESTAMP
                 if start_time == "now"
-                else firestore.Timestamp.from_datetime(
-                    datetime.fromisoformat(start_time)
-                )
+                else Timestamp.from_datetime(datetime.fromisoformat(start_time))
             )
             logger.info(f"Converted start_time to Firestore timestamp: {start_time}")
         event = {"deviceId": device_id, "type": event_type, "time": start_time}
@@ -85,14 +84,14 @@ async def send_notifications(
 
         if isinstance(start_time, str):
             dt = datetime.fromisoformat(start_time)
-            firestore_timestamp = firestore.Timestamp.from_datetime(dt)
+            firestore_timestamp = Timestamp.from_datetime(dt)
             unix_timestamp = int(dt.timestamp())
         elif isinstance(start_time, datetime):
-            firestore_timestamp = firestore.Timestamp.from_datetime(start_time)
+            firestore_timestamp = Timestamp.from_datetime(start_time)
             unix_timestamp = int(start_time.timestamp())
         elif isinstance(start_time, int):
             # If it's already a Unix timestamp
-            firestore_timestamp = firestore.Timestamp.from_seconds(start_time)
+            firestore_timestamp = Timestamp.from_seconds(start_time)
             unix_timestamp = start_time
 
         # Map event types to notification types

@@ -1,5 +1,6 @@
 from typing import Dict, Any
 import asyncio
+from app.config import db
 from fastapi import WebSocket, WebSocketDisconnect
 from app.services.analysis_service import get_singleton_analysis_service
 from app.services.device_state import DeviceState
@@ -73,6 +74,17 @@ class WebSocketHandler:
                     },
                 )
             )
+
+    async def update_device_online_status(self, device_id, is_online):
+        """
+        Update the isOnline field of a device in Firestore
+        """
+        try:
+            device_ref = db.collection("devices").document(device_id)
+            device_ref.update({"isOnline": is_online})
+            logger.info(f"Updated online status for device {device_id} to {is_online}")
+        except Exception as e:
+            logger.error(f"Error updating device online status: {str(e)}")
 
     async def handle_connection(self, websocket: WebSocket, device_id: str):
         try:
@@ -325,6 +337,7 @@ class WebSocketHandler:
             )
         finally:
             try:
+                await self.update_device_online_status(device_id, False)
                 # Clean up the Firestore threshold listener if it exists
                 if device_id in self.threshold_listeners:
                     logger.info(f"Removing threshold listener for device {device_id}")

@@ -224,8 +224,7 @@ async def send_fcm_notification(token, message):
                 priority="high",
                 notification=messaging.AndroidNotification(
                     priority="high",
-                    channel_id="default",
-                    sound="notification.mp3",
+                    channel_id="babycare-alerts",
                 ),
             ),
             token=token,

@@ -12,9 +12,9 @@ import warnings
 
 load_dotenv()
 
-ngrok.set_auth_token(os.getenv("NGROK_AUTHTOKEN"))
-public_url = ngrok.connect(os.getenv("API_PORT"))
-print(f"Public URL: {public_url}")
+# ngrok.set_auth_token(os.getenv("NGROK_AUTHTOKEN"))
+# public_url = ngrok.connect(os.getenv("API_PORT"))
+# print(f"Public URL: {public_url}")
 
 # Disable GPU for MediaPipe
 os.environ["MEDIAPIPE_DISABLE_GPU"] = "1"

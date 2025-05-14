@@ -9,7 +9,18 @@ import logging
 
 logger = logging.getLogger(__name__)
 
+
 # ...existing code...
+def convert_utc_timestamp_to_vn_datetime(timestamp: float) -> datetime:
+    """
+    Chuyển đổi timestamp UTC thành datetime theo múi giờ Việt Nam (UTC+7).
+
+    :param timestamp: Unix timestamp (tính theo UTC)
+    :return: datetime theo múi giờ Việt Nam (UTC+7)
+    """
+    vn_tz = timezone(timedelta(hours=7))
+    vn_datetime = datetime.fromtimestamp(timestamp, tz=vn_tz)
+    return vn_datetime
 
 
 def convert_to_vietnam_timezone(timestamp):
@@ -27,13 +38,12 @@ def convert_to_vietnam_timezone(timestamp):
             # Convert ISO string to datetime object
             timestamp = datetime.fromisoformat(timestamp)
 
-        # If timestamp has no timezone info, assume it's UTC
-        if timestamp.tzinfo is None:
-            timestamp = timestamp.replace(tzinfo=timezone.utc)
-
         # Convert to Vietnam timezone (UTC+7)
         vietnam_tz = timezone(timedelta(hours=7))
-        vietnam_time = timestamp.astimezone(vietnam_tz)
+        # vietnam_time = timestamp.astimezone(vietnam_tz)
+        vietnam_time = datetime.fromtimestamp(
+            timestamp.timestamp(), tz=vietnam_tz
+        )  # Convert to Vietnam timezone
 
         logger.info(f"Converted time to Vietnam timezone: {vietnam_time}")
         return vietnam_time
@@ -57,6 +67,7 @@ async def send_event_to_firestore(device_id, event_type, start_time):
     """Record an event in the device's events collection"""
     try:
         if isinstance(start_time, str):
+            start_time = datetime.fromisoformat(start_time)
             start_time = convert_to_vietnam_timezone(start_time)
             logger.info(f"Converted start_time to Firestore timestamp: {start_time}")
             if event_type == "back":
@@ -128,11 +139,6 @@ async def send_notifications(
             firestore_timestamp = start_time
             # Convert to Vietnam timezone
             firestore_timestamp = convert_to_vietnam_timezone(firestore_timestamp)
-        elif isinstance(start_time, int):
-            # If it's already a Unix timestamp
-            firestore_timestamp = convert_to_vietnam_timezone(
-                datetime.fromtimestamp(start_time)
-            )
 
         # Map event types to notification types
         notification_type_map = {

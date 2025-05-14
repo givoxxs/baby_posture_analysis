@@ -195,6 +195,9 @@ class WebSocketHandler:
                         has_blanket = False
                     else:
                         has_blanket = blanket_data
+
+                    # has_blanket = ! has_blanket
+                    # has_blanket = not has_blanket
                     logger.info(f"Blanket status: {has_blanket}")
 
                     await self.manager.send_message(

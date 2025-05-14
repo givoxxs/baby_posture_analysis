@@ -58,7 +58,7 @@ class DeviceState:
             if is_covered == False:
                 await send_event_to_firestore(self.device_id, "no_blanket", timestamp)
             else:
-                await send_event_to_firestore(self.device_id, "has_blanket", timestamp)
+                await send_event_to_firestore(self.device_id, "blanket", timestamp)
 
     # Calculate seconds between two timestamps
     def calc_time(self, start_time, end_time):

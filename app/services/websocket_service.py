@@ -349,7 +349,7 @@ class WebSocketHandler:
             )
         finally:
             try:
-                await self.update_device_online_status(device_id, False)
+                # await self.update_device_online_status(device_id, False)
                 # Clean up the Firestore threshold listener if it exists
                 if device_id in self.threshold_listeners:
                     logger.info(f"Removing threshold listener for device {device_id}")

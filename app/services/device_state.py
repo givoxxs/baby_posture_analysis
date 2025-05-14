@@ -56,7 +56,7 @@ class DeviceState:
             self.blanket_baby["first_time"] = timestamp
             self.blanket_baby["last_time"] = timestamp
             if is_covered == False:
-                await send_event_to_firestore(self.device_id, "no_blanket", timestamp)
+                await send_event_to_firestore(self.device_id, "noblanket", timestamp)
             else:
                 await send_event_to_firestore(self.device_id, "blanket", timestamp)
 
@@ -98,6 +98,8 @@ class DeviceState:
         return False
 
     def check_blanket_baby(self):
+        if self.no_blanket_threshold == 0:
+            return False
         if self.blanket_baby["is_covered"] == False:
             if (
                 self.blanket_baby["count"] >= self.no_blanket_threshold * 80 / 100

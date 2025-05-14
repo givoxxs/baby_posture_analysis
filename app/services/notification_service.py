@@ -1,7 +1,7 @@
 import json
 import cloudinary.uploader
 import firebase_admin
-from firebase_admin import messaging
+from firebase_admin import messaging, firestore
 from datetime import datetime
 from app.config import db
 import logging
@@ -23,6 +23,15 @@ async def upload_to_cloudinary(image_base64):
 async def send_event_to_firestore(device_id, event_type, start_time):
     """Record an event in the device's events collection"""
     try:
+        if isinstance(start_time, str):
+            start_time = (
+                firestore.SERVER_TIMESTAMP
+                if start_time == "now"
+                else firestore.Timestamp.from_datetime(
+                    datetime.fromisoformat(start_time)
+                )
+            )
+            logger.info(f"Converted start_time to Firestore timestamp: {start_time}")
         event = {"deviceId": device_id, "type": event_type, "time": start_time}
         await db.collection("devices").document(device_id).collection("events").add(
             event
@@ -36,7 +45,7 @@ async def get_device_connections(device_id):
     """Get all connections for a device"""
     try:
         connections_ref = db.collection("connections").where(
-            "device_id", "==", device_id
+            "deviceId", "==", device_id
         )
         connections = await connections_ref.get()
         return [connection.to_dict() for connection in connections]
@@ -48,7 +57,7 @@ async def get_device_connections(device_id):
 async def get_user(user_id):
     """Get user document by ID"""
     try:
-        user_doc = db.collection("users").where("user_id", "==", user_id).get()
+        user_doc = db.collection("users").where("id", "==", user_id).get()
         if user_doc:
             return user_doc[0].to_dict()
         return None
@@ -71,6 +80,21 @@ async def send_notifications(
         image_url: Optional URL to an image
     """
     try:
+        firestore_timestamp = start_time
+        unix_timestamp = 0
+
+        if isinstance(start_time, str):
+            dt = datetime.fromisoformat(start_time)
+            firestore_timestamp = firestore.Timestamp.from_datetime(dt)
+            unix_timestamp = int(dt.timestamp())
+        elif isinstance(start_time, datetime):
+            firestore_timestamp = firestore.Timestamp.from_datetime(start_time)
+            unix_timestamp = int(start_time.timestamp())
+        elif isinstance(start_time, int):
+            # If it's already a Unix timestamp
+            firestore_timestamp = firestore.Timestamp.from_seconds(start_time)
+            unix_timestamp = start_time
+
         # Map event types to notification types
         notification_type_map = {
             "side": "Side",
@@ -82,20 +106,13 @@ async def send_notifications(
         # Get notification type for the event
         notification_type = notification_type_map.get(event_type, event_type)
 
-        # Save the notification in the pushnotifications collection for the device
-        push_notification = {
-            "deviceId": device_id,
-            "type": notification_type,
-            "duration": duration,
-            "time": start_time,
-        }
-
         # Save to global notifications collection with image URL if available
         if image_url:
             notification = {
                 "type": notification_type,
                 "duration": duration,
-                "time": start_time,
+                # "time": start_time,
+                "time": firestore_timestamp,
                 "imageUrl": image_url,
             }
             # notification_ref = await db.collection("notifications").add(notification)
@@ -138,9 +155,10 @@ async def send_notifications(
                     "data": {
                         "id": notification_id,
                         "type": notification_type,
-                        "time": int(
-                            datetime.fromisoformat(start_time).timestamp()
-                        ),  # Convert to Unix timestamp
+                        "time": unix_timestamp,
+                        # "time": int(
+                        #     datetime.fromisoformat(start_time).timestamp()
+                        # ),  # Convert to Unix timestamp
                         "duration": duration,
                     },
                 }
@@ -260,7 +278,7 @@ async def get_device_thresholds(device_id):
         thresholds = {
             "sideThreshold": device_data.get("sideThreshold", 10),
             "proneThreshold": device_data.get("proneThreshold", 10),
-            "noBlanketThreshold": device_data.get("noBlanketThreshold", 10),
+            "noBlanketThreshold": device_data.get("noBlanketThreshold", 100),
         }
         logger.info(f"Retrieved thresholds for device {device_id}: {thresholds}")
         return thresholds

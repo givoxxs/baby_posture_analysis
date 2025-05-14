@@ -59,6 +59,8 @@ async def send_event_to_firestore(device_id, event_type, start_time):
         if isinstance(start_time, str):
             start_time = convert_to_vietnam_timezone(start_time)
             logger.info(f"Converted start_time to Firestore timestamp: {start_time}")
+            if event_type == "back":
+                event_type = "supine"
         event = {"deviceId": device_id, "type": event_type, "time": start_time}
         await db.collection("devices").document(device_id).collection("events").add(
             event

@@ -35,5 +35,6 @@ RUN if [ ! -f babycare_connection.json ] && [ ! -z "$BABYCARE_CONNECTION_JSON" ]
 # Mở cổng mà ứng dụng sẽ chạy
 EXPOSE 8080
 
-# Khởi chạy ứng dụng sử dụng Gunicorn với file cấu hình
-CMD ["gunicorn", "app.main:app", "-c", "gunicorn_conf.py"] 
+# Khởi chạy ứng dụng với Uvicorn
+# Sử dụng tham số --ws-ping-interval và --ws-ping-timeout để tối ưu cho WebSocket
+CMD ["uvicorn", "app.main:app", "--host", "0.0.0.0", "--port", "8080", "--ws-ping-interval", "30", "--ws-ping-timeout", "120", "--log-level", "info"] 

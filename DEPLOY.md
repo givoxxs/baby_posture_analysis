@@ -96,25 +96,32 @@ Các thư mục và files này được loại trừ thông qua:
 - File `.dockerignore` khi build Docker image
 - Quy trình deploy trong GitHub Actions workflow
 
-## 5. Sử dụng Gunicorn cho môi trường sản xuất
+## 5. Cấu hình Uvicorn cho WebSocket
 
-Dự án này sử dụng Gunicorn với Uvicorn worker trong môi trường sản xuất, mang lại nhiều lợi ích:
+Dự án này sử dụng Uvicorn để chạy ứng dụng FastAPI với hỗ trợ WebSocket. Uvicorn là lựa chọn tốt nhất cho các ứng dụng yêu cầu hỗ trợ WebSocket đầy đủ.
 
-1. **Hiệu suất cao hơn**: Gunicorn quản lý nhiều worker processes, tận dụng tối đa tài nguyên CPU.
-2. **Độ tin cậy**: Tự động khởi động lại các worker processes khi chúng gặp sự cố.
-3. **Khả năng mở rộng**: Dễ dàng điều chỉnh số lượng worker processes thông qua biến môi trường.
-4. **Bảo mật tốt hơn**: Gunicorn được thiết kế để xử lý các vấn đề bảo mật trong môi trường sản xuất.
+### 5.1. Cấu hình Uvicorn Tối ưu
 
-### 5.1. Cấu hình Gunicorn
+Uvicorn được cấu hình trong Dockerfile với các tham số tối ưu cho WebSocket:
 
-Cấu hình Gunicorn được định nghĩa trong file `gunicorn_conf.py` và có thể được tùy chỉnh thông qua các biến môi trường trong `docker-compose.yml`:
+```
+uvicorn app.main:app --host 0.0.0.0 --port 8080 --ws-ping-interval 30 --ws-ping-timeout 120 --log-level info
+```
 
-- `WORKERS_PER_CORE`: Số lượng worker processes trên mỗi CPU core (mặc định: 2)
-- `WEB_CONCURRENCY`: Tổng số worker processes (ghi đè công thức mặc định)
-- `TIMEOUT`: Thời gian tối đa cho một worker để xử lý một request (giây)
-- `MAX_REQUESTS`: Số lượng requests tối đa mà một worker sẽ xử lý trước khi khởi động lại
+Các tham số chính:
+- `--ws-ping-interval`: Khoảng thời gian giữa các ping WebSocket (giây)
+- `--ws-ping-timeout`: Thời gian tối đa chờ đợi pong response (giây)
+- `--log-level`: Mức độ logging
 
-Để tối ưu hóa cấu hình Gunicorn cho máy chủ của bạn, hãy điều chỉnh các biến môi trường trong `docker-compose.yml`.
+### 5.2. Biến Môi trường cho Uvicorn
+
+Uvicorn có thể được cấu hình thông qua các biến môi trường trong `docker-compose.yml`:
+
+- `UVICORN_HOST`: Địa chỉ IP để lắng nghe
+- `UVICORN_PORT`: Cổng để lắng nghe
+- `UVICORN_LOG_LEVEL`: Mức độ logging
+- `UVICORN_WS_PING_INTERVAL`: Khoảng thời gian giữa các ping WebSocket
+- `UVICORN_WS_PING_TIMEOUT`: Thời gian tối đa chờ đợi pong response
 
 ## 6. Triển khai thủ công lần đầu
 
@@ -186,10 +193,20 @@ docker-compose restart
 4. Định kỳ thay đổi các thông tin nhạy cảm và cập nhật cả trên VPS và GitHub Secrets
 5. Sao lưu các file nhạy cảm ở nơi an toàn ngoài VPS
 
-## 11. Tối ưu hóa hiệu suất
+## 11. Tối ưu hóa hiệu suất WebSocket
 
-Để tối ưu hóa hiệu suất của ứng dụng trong môi trường sản xuất:
+Để tối ưu hóa hiệu suất WebSocket trong môi trường sản xuất:
 
-1. Điều chỉnh số lượng worker processes trong docker-compose.yml phù hợp với tài nguyên máy chủ
-2. Sử dụng reverse proxy như Nginx để phục vụ các tệp tĩnh và cân bằng tải
-3. Theo dõi sử dụng bộ nhớ và CPU để đảm bảo hiệu suất tối ưu 
+1. **Điều chỉnh tham số WebSocket**:
+   - Tăng giá trị `--ws-ping-interval` nếu kết nối giữa client và server ổn định
+   - Giảm giá trị này nếu mạng không ổn định để phát hiện disconnect sớm hơn
+   - Điều chỉnh `--ws-ping-timeout` tùy thuộc vào độ trễ mạng
+
+2. **Giám sát kết nối**:
+   - Theo dõi số lượng kết nối WebSocket đồng thời
+   - Theo dõi thời gian sống của các kết nối
+   - Phát hiện sớm các lỗi kết nối
+
+3. **Khi cần mở rộng quy mô**:
+   - Xem xét giải pháp load balancing nếu số lượng kết nối WebSocket tăng cao
+   - Sử dụng công cụ như HAProxy hoặc Nginx với module stream để cân bằng tải WebSocket 

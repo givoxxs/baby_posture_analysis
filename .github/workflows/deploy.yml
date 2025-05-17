@@ -34,7 +34,7 @@ jobs:
         run: |
           # Sao chép code và các file cấu hình, loại bỏ thư mục ML_train
           mkdir -p temp_deploy
-          cp -r app static data data_cleaned requirements.txt .env babycare_connection.json Dockerfile docker-compose.yml gunicorn_conf.py temp_deploy/
+          cp -r app static data data_cleaned requirements.txt .env babycare_connection.json Dockerfile docker-compose.yml temp_deploy/
           scp -r temp_deploy/* $VPS_USERNAME@$VPS_IP:/home/$VPS_USERNAME/baby_posture_analysis_temp/
           rm -rf temp_deploy
           

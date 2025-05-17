@@ -13,10 +13,10 @@ RUN apt-get update && apt-get install -y --no-install-recommends \
 # Sao chép requirements.txt trước để tận dụng cache của Docker
 COPY requirements.txt .
 
-# Cài đặt Python dependencies với xử lý lỗi nếu package không tồn tại cho nền tảng hiện tại
-RUN pip install --no-cache-dir -r requirements.txt || \
-    (grep -v "pywin32" requirements.txt > requirements_linux.txt && \
-    pip install --no-cache-dir -r requirements_linux.txt)
+# Tạo phiên bản requirements_linux.txt không có pywin32 và giải quyết xung đột protobuf
+RUN grep -v "pywin32" requirements.txt | grep -v "^protobuf==" > requirements_linux.txt && \
+    echo "protobuf>=4.25.3,<5.0.0" >> requirements_linux.txt && \
+    pip install --no-cache-dir -r requirements_linux.txt
 
 # Tạo thư mục logs và static
 RUN mkdir -p logs static

@@ -14,7 +14,7 @@ cat ~/.ssh/github_actions_key
 echo ""
 echo "===== HƯỚNG DẪN ====="
 echo "1. Sao chép toàn bộ nội dung khóa riêng tư ở trên (bao gồm cả dòng BEGIN và END)"
-echo "2. Thêm vào GitHub repository: Settings > Secrets and variables > Actions > New repository secret"
+echo "2. Thêm vào GitHub repository: https://github.com/givoxxs/baby_posture_analysis > Settings > Secrets and variables > Actions > New repository secret"
 echo "3. Đặt tên là SSH_PRIVATE_KEY"
 echo "4. Thêm hai secrets khác:"
 echo "   - VPS_USERNAME: $(whoami)"

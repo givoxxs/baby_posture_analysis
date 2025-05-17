@@ -24,4 +24,7 @@ mkdir -p ~/baby_posture_analysis/logs
 mkdir -p ~/baby_posture_analysis/static
 
 # Thông báo
-echo "Cài đặt hoàn tất. Vui lòng đăng xuất và đăng nhập lại để áp dụng thay đổi nhóm docker." 
+echo "Cài đặt hoàn tất. Vui lòng đăng xuất và đăng nhập lại để áp dụng thay đổi nhóm docker."
+echo ""
+echo "Sau khi đăng nhập lại, bạn có thể tải dự án từ GitHub:"
+echo "git clone https://github.com/givoxxs/baby_posture_analysis.git" 

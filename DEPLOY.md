@@ -10,7 +10,7 @@ ssh username@ip_address
 ### 1.2. Cài đặt môi trường
 Tải và chạy script thiết lập:
 ```bash
-wget -O setup-vps.sh https://raw.githubusercontent.com/your-username/baby_posture_analysis/main/setup-vps.sh
+wget -O setup-vps.sh https://raw.githubusercontent.com/givoxxs/baby_posture_analysis/main/setup-vps.sh
 chmod +x setup-vps.sh
 ./setup-vps.sh
 ```
@@ -20,7 +20,7 @@ chmod +x setup-vps.sh
 mkdir -p ~/baby_posture_analysis
 
 # Tải và chạy script thiết lập secrets
-wget -O setup-secrets.sh https://raw.githubusercontent.com/your-username/baby_posture_analysis/main/setup-secrets.sh
+wget -O setup-secrets.sh https://raw.githubusercontent.com/givoxxs/baby_posture_analysis/main/setup-secrets.sh
 chmod +x setup-secrets.sh
 ./setup-secrets.sh
 
@@ -34,14 +34,14 @@ nano ~/baby_posture_analysis/babycare_connection.json
 ### 2.1. Tạo SSH Key trên VPS
 
 ```bash
-wget -O setup-ssh-key.sh https://raw.githubusercontent.com/your-username/baby_posture_analysis/main/setup-ssh-key.sh
+wget -O setup-ssh-key.sh https://raw.githubusercontent.com/givoxxs/baby_posture_analysis/main/setup-ssh-key.sh
 chmod +x setup-ssh-key.sh
 ./setup-ssh-key.sh
 ```
 
 ### 2.2. Thêm GitHub Secrets
 
-Trong GitHub, truy cập vào repository, vào mục Settings > Secrets and variables > Actions, thêm các secrets sau:
+Trong GitHub, truy cập vào repository (https://github.com/givoxxs/baby_posture_analysis), vào mục Settings > Secrets and variables > Actions, thêm các secrets sau:
 
 - `SSH_PRIVATE_KEY`: Nội dung của file `~/.ssh/github_actions_key` trên VPS
 - `VPS_USERNAME`: Tên người dùng trên VPS
@@ -83,7 +83,20 @@ Dự án này sử dụng 3 lớp bảo mật cho các file nhạy cảm:
 
 Các file nhạy cảm **không được commit** vào repository vì đã được thêm vào `.gitignore`.
 
-## 4. Sử dụng Gunicorn cho môi trường sản xuất
+## 4. Thư mục và files không cần thiết cho triển khai
+
+Một số thư mục và files không được bao gồm trong quá trình triển khai:
+
+1. **ML_train/**: Thư mục chứa các notebook và mã nguồn dùng để thử nghiệm và huấn luyện mô hình, không cần thiết cho ứng dụng sản xuất.
+2. **.git/**: Thư mục Git không cần thiết cho việc chạy ứng dụng.
+3. **.github/**: Chứa cấu hình GitHub Actions, không cần thiết trên môi trường sản xuất.
+4. Các file cấu hình và tài liệu như README.md, DEPLOY.md, v.v.
+
+Các thư mục và files này được loại trừ thông qua:
+- File `.dockerignore` khi build Docker image
+- Quy trình deploy trong GitHub Actions workflow
+
+## 5. Sử dụng Gunicorn cho môi trường sản xuất
 
 Dự án này sử dụng Gunicorn với Uvicorn worker trong môi trường sản xuất, mang lại nhiều lợi ích:
 
@@ -92,7 +105,7 @@ Dự án này sử dụng Gunicorn với Uvicorn worker trong môi trường s�
 3. **Khả năng mở rộng**: Dễ dàng điều chỉnh số lượng worker processes thông qua biến môi trường.
 4. **Bảo mật tốt hơn**: Gunicorn được thiết kế để xử lý các vấn đề bảo mật trong môi trường sản xuất.
 
-### 4.1. Cấu hình Gunicorn
+### 5.1. Cấu hình Gunicorn
 
 Cấu hình Gunicorn được định nghĩa trong file `gunicorn_conf.py` và có thể được tùy chỉnh thông qua các biến môi trường trong `docker-compose.yml`:
 
@@ -103,36 +116,41 @@ Cấu hình Gunicorn được định nghĩa trong file `gunicorn_conf.py` và c
 
 Để tối ưu hóa cấu hình Gunicorn cho máy chủ của bạn, hãy điều chỉnh các biến môi trường trong `docker-compose.yml`.
 
-## 5. Triển khai thủ công lần đầu
+## 6. Triển khai thủ công lần đầu
 
-### 5.1. Sao chép dự án sang VPS
+### 6.1. Sao chép dự án sang VPS
 ```bash
-git clone https://github.com/your-username/baby_posture_analysis.git ~/baby_posture_analysis_temp
+git clone https://github.com/givoxxs/baby_posture_analysis.git ~/baby_posture_analysis_temp
 cd ~/baby_posture_analysis_temp
 ```
 
-### 5.2. Di chuyển files từ bản tạm sang thư mục chính (giữ lại các file nhạy cảm)
+### 6.2. Di chuyển files từ bản tạm sang thư mục chính (giữ lại các file nhạy cảm)
 ```bash
-cp -r * ~/baby_posture_analysis/
+# Loại bỏ thư mục ML_train nếu tồn tại
+rm -rf ~/baby_posture_analysis_temp/ML_train
+
+# Sao chép các file cần thiết
+cp -r ~/baby_posture_analysis_temp/* ~/baby_posture_analysis/
 cd ~/baby_posture_analysis
 rm -rf ~/baby_posture_analysis_temp
 ```
 
-### 5.3. Khởi chạy ứng dụng
+### 6.3. Khởi chạy ứng dụng
 ```bash
 cd ~/baby_posture_analysis
 docker-compose up -d --build
 ```
 
-## 6. Quy trình CI/CD
+## 7. Quy trình CI/CD
 
-1. Push code lên nhánh `main` hoặc `master`
+1. Push code lên nhánh `main` hoặc `master` của repository https://github.com/givoxxs/baby_posture_analysis
 2. GitHub Actions sẽ tự động tạo các file nhạy cảm từ GitHub Secrets
-3. GitHub Actions triển khai code lên VPS, giữ lại các file nhạy cảm hiện có
-4. Docker sử dụng các file nhạy cảm thông qua volumes
-5. Kiểm tra ứng dụng tại http://your-vps-ip:8080
+3. GitHub Actions chỉ sao chép các thư mục và files cần thiết, loại bỏ thư mục ML_train
+4. GitHub Actions triển khai code lên VPS, giữ lại các file nhạy cảm hiện có
+5. Docker sử dụng các file nhạy cảm thông qua volumes
+6. Kiểm tra ứng dụng tại http://your-vps-ip:8080
 
-## 7. Kiểm tra logs
+## 8. Kiểm tra logs
 
 ```bash
 # Xem logs của container
@@ -142,7 +160,7 @@ docker logs baby_posture_analysis
 cat ~/baby_posture_analysis/logs/app.log
 ```
 
-## 8. Quản lý ứng dụng
+## 9. Quản lý ứng dụng
 
 ```bash
 # Khởi động ứng dụng
@@ -158,7 +176,7 @@ cd ~/baby_posture_analysis
 docker-compose restart
 ```
 
-## 9. Bảo mật file nhạy cảm
+## 10. Bảo mật file nhạy cảm
 
 Để đảm bảo an toàn cho các file nhạy cảm:
 
@@ -168,7 +186,7 @@ docker-compose restart
 4. Định kỳ thay đổi các thông tin nhạy cảm và cập nhật cả trên VPS và GitHub Secrets
 5. Sao lưu các file nhạy cảm ở nơi an toàn ngoài VPS
 
-## 10. Tối ưu hóa hiệu suất
+## 11. Tối ưu hóa hiệu suất
 
 Để tối ưu hóa hiệu suất của ứng dụng trong môi trường sản xuất:
 

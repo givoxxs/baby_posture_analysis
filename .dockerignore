@@ -29,7 +29,7 @@ logs/
 
 # Dữ liệu và mô hình (nếu cần loại bỏ)
 # data/
-# ML_train/
+ML_train/
 
 # IDE
 .idea/

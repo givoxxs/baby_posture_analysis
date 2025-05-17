@@ -45,4 +45,4 @@ echo "2. Sau đó, lấy nội dung của chúng để thêm vào GitHub Secrets
 echo "   - ENV_FILE_CONTENT: cat ~/baby_posture_analysis/.env"
 echo "   - BABYCARE_CONNECTION_JSON: cat ~/baby_posture_analysis/babycare_connection.json"
 echo ""
-echo "3. Thêm các secrets này vào GitHub repository: Settings > Secrets and variables > Actions" 
+echo "3. Thêm các secrets này vào GitHub repository: https://github.com/givoxxs/baby_posture_analysis > Settings > Secrets and variables > Actions" 

@@ -35,13 +35,20 @@ jobs:
             ENV_FILE_CONTENT=${{ secrets.ENV_FILE_CONTENT }}
             BABYCARE_CONNECTION_JSON=${{ secrets.BABYCARE_CONNECTION_JSON }}
 
+      - name: Create docker-compose env file
+        run: |
+          cat > .env.docker-compose << EOF
+          DOCKER_USERNAME=${{ secrets.DOCKER_USERNAME }}
+          PORT=8080
+          EOF
+
       - name: Copy files to VPS
         uses: appleboy/scp-action@master
         with:
           host: ${{ secrets.VPS_IP }}
           username: ${{ secrets.VPS_USERNAME }}
           password: ${{ secrets.VPS_PASSWORD }}
-          source: "docker-compose.yml,.env,babycare_connection.json"
+          source: "docker-compose.yml,.env,babycare_connection.json,.env.docker-compose"
           target: "~/baby_posture_analysis"
           strip_components: 0
 
@@ -65,5 +72,5 @@ jobs:
             # Pull image mới nhất
             docker pull ${{ secrets.DOCKER_USERNAME }}/baby_posture_analysis:latest
             
-            # Khởi động lại service
-            docker-compose up -d 
+            # Khởi động lại service với biến môi trường
+            docker-compose --env-file .env.docker-compose up -d 

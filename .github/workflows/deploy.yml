@@ -1,0 +1,47 @@
+name: Deploy to VPS
+
+on:
+  push:
+    branches: [ main, master ]
+  workflow_dispatch:
+
+jobs:
+  deploy:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v4
+
+      - name: Set up SSH
+        uses: webfactory/ssh-agent@v0.9.0
+        with:
+          ssh-private-key: ${{ secrets.SSH_PRIVATE_KEY }}
+
+      - name: Add known hosts
+        run: |
+          mkdir -p ~/.ssh
+          ssh-keyscan -H ${{ secrets.VPS_IP }} >> ~/.ssh/known_hosts
+
+      - name: Create secret files from GitHub Secrets
+        run: |
+          echo "${{ secrets.ENV_FILE_CONTENT }}" > .env
+          echo "${{ secrets.BABYCARE_CONNECTION_JSON }}" > babycare_connection.json
+
+      - name: Deploy to VPS
+        env:
+          VPS_USERNAME: ${{ secrets.VPS_USERNAME }}
+          VPS_IP: ${{ secrets.VPS_IP }}
+        run: |
+          # Sao chép code và các file cấu hình 
+          scp -r $(ls -A | grep -v -E '\.git$|\.github$') $VPS_USERNAME@$VPS_IP:/home/$VPS_USERNAME/baby_posture_analysis_temp/
+          
+          # Triển khai code mới đồng thời bảo toàn các file nhạy cảm
+          ssh $VPS_USERNAME@$VPS_IP "cd /home/$VPS_USERNAME && \
+            if [ ! -d baby_posture_analysis ]; then mkdir -p baby_posture_analysis; fi && \
+            cp -f baby_posture_analysis_temp/.env baby_posture_analysis/ 2>/dev/null || true && \
+            cp -f baby_posture_analysis_temp/babycare_connection.json baby_posture_analysis/ 2>/dev/null || true && \
+            cp -r baby_posture_analysis_temp/* baby_posture_analysis/ && \
+            rm -rf baby_posture_analysis_temp && \
+            cd baby_posture_analysis && \
+            docker-compose down && \
+            docker-compose up -d --build" 

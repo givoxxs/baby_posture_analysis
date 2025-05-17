@@ -1,0 +1,39 @@
+FROM python:3.11-slim
+
+WORKDIR /app
+
+# Cài đặt các gói cần thiết
+RUN apt-get update && apt-get install -y --no-install-recommends \
+    build-essential \
+    libgl1-mesa-glx \
+    libglib2.0-0 \
+    && rm -rf /var/lib/apt/lists/*
+
+# Sao chép requirements.txt trước để tận dụng cache của Docker
+COPY requirements.txt .
+RUN pip install --no-cache-dir -r requirements.txt
+
+# Tạo thư mục logs và static
+RUN mkdir -p logs static
+
+# Sao chép toàn bộ code của ứng dụng (ngoại trừ những gì trong .dockerignore)
+COPY . .
+
+# Tạo file .env và babycare_connection.json từ biến môi trường nếu chúng không tồn tại
+# Điều này cho phép truyền nội dung của chúng qua Docker build arguments
+ARG ENV_FILE_CONTENT=""
+ARG BABYCARE_CONNECTION_JSON=""
+
+RUN if [ ! -f .env ] && [ ! -z "$ENV_FILE_CONTENT" ]; then \
+    echo "$ENV_FILE_CONTENT" > .env; \
+    fi
+
+RUN if [ ! -f babycare_connection.json ] && [ ! -z "$BABYCARE_CONNECTION_JSON" ]; then \
+    echo "$BABYCARE_CONNECTION_JSON" > babycare_connection.json; \
+    fi
+
+# Mở cổng mà ứng dụng sẽ chạy
+EXPOSE 8080
+
+# Khởi chạy ứng dụng sử dụng Gunicorn với file cấu hình
+CMD ["gunicorn", "app.main:app", "-c", "gunicorn_conf.py"] 

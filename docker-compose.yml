@@ -1,0 +1,43 @@
+version: '3.8'
+
+services:
+  app:
+    build:
+      context: .
+      args:
+        # Các biến này sẽ được sử dụng trong quá trình build nếu các file không tồn tại
+        # Để trống, vì chúng ta sẽ sử dụng các file thực tế trong volumes
+        ENV_FILE_CONTENT: ""
+        BABYCARE_CONNECTION_JSON: ""
+    container_name: baby_posture_analysis
+    restart: always
+    ports:
+      - "8080:8080"
+    volumes:
+      - ./logs:/app/logs
+      - ./static:/app/static
+      # Mount các file nhạy cảm từ host vào container (chúng sẽ ghi đè lên các file được tạo trong build)
+      - ./.env:/app/.env
+      - ./babycare_connection.json:/app/babycare_connection.json
+    environment:
+      # Biến môi trường cho ứng dụng
+      - API_HOST=0.0.0.0
+      - API_PORT=8080
+      - API_TITLE=Baby Posture Analysis
+      - API_DESCRIPTION=API for analyzing baby posture from images and videos
+      - API_VERSION=1.0.0
+
+      # Cấu hình Gunicorn
+      - WORKERS_PER_CORE=1 # Số lượng worker trên mỗi CPU core
+      - WEB_CONCURRENCY=4 # Tổng số worker processes (ghi đè công thức mặc định)
+      - HOST=0.0.0.0
+      - PORT=8080
+      - TIMEOUT=120
+      - LOG_LEVEL=info
+      - MAX_REQUESTS=1000 # Khởi động lại worker sau 1000 requests để tránh memory leaks
+    networks:
+      - app-network
+
+networks:
+  app-network:
+    driver: bridge

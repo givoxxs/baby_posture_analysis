@@ -1,24 +1,21 @@
 # Hướng dẫn Triển khai CI/CD với Docker và GitHub Actions
 
-## 1. Thiết lập VPS
+## 1. Thiết lập Thư mục Dự án trên VPS
 
 ### 1.1. Kết nối SSH vào VPS
 ```bash
 ssh username@ip_address
 ```
 
-### 1.2. Cài đặt môi trường
-Tải và chạy script thiết lập:
+### 1.2. Tạo thư mục dự án và các thư mục cần thiết
 ```bash
-wget -O setup-vps.sh https://raw.githubusercontent.com/givoxxs/baby_posture_analysis/main/setup-vps.sh
-chmod +x setup-vps.sh
-./setup-vps.sh
+# Tạo thư mục dự án và các thư mục cần thiết
+mkdir -p ~/baby_posture_analysis/logs
+mkdir -p ~/baby_posture_analysis/static
 ```
 
-### 1.3. Tạo thư mục dự án và thiết lập secrets
+### 1.3. Thiết lập các file nhạy cảm
 ```bash
-mkdir -p ~/baby_posture_analysis
-
 # Tải và chạy script thiết lập secrets
 wget -O setup-secrets.sh https://raw.githubusercontent.com/givoxxs/baby_posture_analysis/main/setup-secrets.sh
 chmod +x setup-secrets.sh
@@ -123,15 +120,35 @@ Uvicorn có thể được cấu hình thông qua các biến môi trường tro
 - `UVICORN_WS_PING_INTERVAL`: Khoảng thời gian giữa các ping WebSocket
 - `UVICORN_WS_PING_TIMEOUT`: Thời gian tối đa chờ đợi pong response
 
-## 6. Triển khai thủ công lần đầu
+## 6. Xử lý Xung đột Cổng
 
-### 6.1. Sao chép dự án sang VPS
+Khi triển khai trên VPS đã có các dự án đang chạy, có thể xảy ra xung đột cổng. Để tránh điều này:
+
+1. **Kiểm tra cổng đang được sử dụng**:
+   ```bash
+   sudo netstat -tuln | grep LISTEN
+   ```
+
+2. **Thay đổi cổng trong docker-compose.yml nếu cần**:
+   ```yaml
+   ports:
+     - "8081:8080"  # Thay 8081 bằng cổng trống trên VPS
+   ```
+
+3. **Cập nhật biến môi trường trong .env**:
+   ```
+   API_PORT=8081  # Phải khớp với cổng bên ngoài trong docker-compose.yml
+   ```
+
+## 7. Triển khai thủ công lần đầu
+
+### 7.1. Sao chép dự án sang VPS
 ```bash
 git clone https://github.com/givoxxs/baby_posture_analysis.git ~/baby_posture_analysis_temp
 cd ~/baby_posture_analysis_temp
 ```
 
-### 6.2. Di chuyển files từ bản tạm sang thư mục chính (giữ lại các file nhạy cảm)
+### 7.2. Di chuyển files từ bản tạm sang thư mục chính (giữ lại các file nhạy cảm)
 ```bash
 # Loại bỏ thư mục ML_train nếu tồn tại
 rm -rf ~/baby_posture_analysis_temp/ML_train
@@ -142,22 +159,22 @@ cd ~/baby_posture_analysis
 rm -rf ~/baby_posture_analysis_temp
 ```
 
-### 6.3. Khởi chạy ứng dụng
+### 7.3. Khởi chạy ứng dụng
 ```bash
 cd ~/baby_posture_analysis
 docker-compose up -d --build
 ```
 
-## 7. Quy trình CI/CD
+## 8. Quy trình CI/CD
 
 1. Push code lên nhánh `main` hoặc `master` của repository https://github.com/givoxxs/baby_posture_analysis
 2. GitHub Actions sẽ tự động tạo các file nhạy cảm từ GitHub Secrets
 3. GitHub Actions chỉ sao chép các thư mục và files cần thiết, loại bỏ thư mục ML_train
 4. GitHub Actions triển khai code lên VPS, giữ lại các file nhạy cảm hiện có
 5. Docker sử dụng các file nhạy cảm thông qua volumes
-6. Kiểm tra ứng dụng tại http://your-vps-ip:8080
+6. Kiểm tra ứng dụng tại http://your-vps-ip:8080 (hoặc cổng được cấu hình)
 
-## 8. Kiểm tra logs
+## 9. Kiểm tra logs
 
 ```bash
 # Xem logs của container
@@ -167,7 +184,7 @@ docker logs baby_posture_analysis
 cat ~/baby_posture_analysis/logs/app.log
 ```
 
-## 9. Quản lý ứng dụng
+## 10. Quản lý ứng dụng
 
 ```bash
 # Khởi động ứng dụng
@@ -183,7 +200,7 @@ cd ~/baby_posture_analysis
 docker-compose restart
 ```
 
-## 10. Bảo mật file nhạy cảm
+## 11. Bảo mật file nhạy cảm
 
 Để đảm bảo an toàn cho các file nhạy cảm:
 
@@ -193,7 +210,7 @@ docker-compose restart
 4. Định kỳ thay đổi các thông tin nhạy cảm và cập nhật cả trên VPS và GitHub Secrets
 5. Sao lưu các file nhạy cảm ở nơi an toàn ngoài VPS
 
-## 11. Tối ưu hóa hiệu suất WebSocket
+## 12. Tối ưu hóa hiệu suất WebSocket
 
 Để tối ưu hóa hiệu suất WebSocket trong môi trường sản xuất:
 

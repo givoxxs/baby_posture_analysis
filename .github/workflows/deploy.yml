@@ -38,9 +38,27 @@ jobs:
           scp -r temp_deploy/* $VPS_USERNAME@$VPS_IP:/home/$VPS_USERNAME/baby_posture_analysis_temp/
           rm -rf temp_deploy
           
+          # Tạo thư mục dự án nếu chưa tồn tại
+          ssh $VPS_USERNAME@$VPS_IP "mkdir -p /home/$VPS_USERNAME/baby_posture_analysis/logs /home/$VPS_USERNAME/baby_posture_analysis/static"
+          
+          # Kiểm tra xung đột cổng và chỉnh sửa nếu cần
+          ssh $VPS_USERNAME@$VPS_IP "
+            # Kiểm tra xem cổng 8080 đã được sử dụng chưa
+            PORT_CHECK=\$(netstat -tuln | grep ':8080 ' | wc -l)
+            
+            if [ \$PORT_CHECK -gt 0 ] && [ -f /home/$VPS_USERNAME/baby_posture_analysis_temp/docker-compose.yml ]; then
+              echo 'Cổng 8080 đã được sử dụng, điều chỉnh sang cổng 8081'
+              sed -i 's/- \"8080:8080\"/- \"8081:8080\"/' /home/$VPS_USERNAME/baby_posture_analysis_temp/docker-compose.yml
+              
+              # Nếu file .env đã có, cập nhật API_PORT
+              if [ -f /home/$VPS_USERNAME/baby_posture_analysis_temp/.env ]; then
+                sed -i 's/API_PORT=8080/API_PORT=8081/' /home/$VPS_USERNAME/baby_posture_analysis_temp/.env
+              fi
+            fi
+          "
+          
           # Triển khai code mới đồng thời bảo toàn các file nhạy cảm
           ssh $VPS_USERNAME@$VPS_IP "cd /home/$VPS_USERNAME && \
-            if [ ! -d baby_posture_analysis ]; then mkdir -p baby_posture_analysis; fi && \
             cp -f baby_posture_analysis_temp/.env baby_posture_analysis/ 2>/dev/null || true && \
             cp -f baby_posture_analysis_temp/babycare_connection.json baby_posture_analysis/ 2>/dev/null || true && \
             cp -r baby_posture_analysis_temp/* baby_posture_analysis/ && \

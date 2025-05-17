@@ -26,12 +26,17 @@ jobs:
           username: ${{ secrets.DOCKER_USERNAME }}
           password: ${{ secrets.DOCKER_PASSWORD }}
 
+      - name: Set up Docker Buildx
+        uses: docker/setup-buildx-action@v3
+
       - name: Build and push Docker image
         uses: docker/build-push-action@v5
         with:
           context: .
           push: true
           tags: ${{ secrets.DOCKER_USERNAME }}/baby_posture_analysis:latest
+          cache-from: type=registry,ref=${{ secrets.DOCKER_USERNAME }}/baby_posture_analysis:buildcache
+          cache-to: type=registry,ref=${{ secrets.DOCKER_USERNAME }}/baby_posture_analysis:buildcache,mode=max
 
       - name: Create .env file for deployment
         run: |

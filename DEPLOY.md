@@ -120,6 +120,22 @@ baby_posture_analysis/
 └── setup-secrets.sh        # Script thiết lập các file nhạy cảm
 ```
 
+## Xử lý dependencies theo hệ điều hành
+
+Một vấn đề phổ biến khi triển khai ứng dụng cross-platform là các dependencies đặc thù của từng hệ điều hành. Ví dụ, `pywin32` chỉ hoạt động trên Windows nhưng không phù hợp cho Linux (Docker).
+
+Để xử lý vấn đề này, chúng ta đã:
+
+1. Chú thích các dependencies chỉ dành cho Windows trong `requirements.txt`
+2. Cập nhật `Dockerfile` để tự động xử lý các trường hợp không thể cài đặt package:
+   ```dockerfile
+   RUN pip install --no-cache-dir -r requirements.txt || \
+       (grep -v "pywin32" requirements.txt > requirements_linux.txt && \
+        pip install --no-cache-dir -r requirements_linux.txt)
+   ```
+
+Điều này đảm bảo Docker build không thất bại khi gặp dependencies không phù hợp với nền tảng.
+
 ## Quy trình CI/CD
 
 ### 1. Push code lên GitHub

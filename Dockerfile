@@ -1,4 +1,4 @@
-FROM python:3.11-slim
+FROM python:3.10-slim
 
 WORKDIR /app
 
@@ -12,7 +12,11 @@ RUN apt-get update && apt-get install -y --no-install-recommends \
 
 # Sao chép requirements.txt trước để tận dụng cache của Docker
 COPY requirements.txt .
-RUN pip install --no-cache-dir -r requirements.txt
+
+# Cài đặt Python dependencies với xử lý lỗi nếu package không tồn tại cho nền tảng hiện tại
+RUN pip install --no-cache-dir -r requirements.txt || \
+    (grep -v "pywin32" requirements.txt > requirements_linux.txt && \
+    pip install --no-cache-dir -r requirements_linux.txt)
 
 # Tạo thư mục logs và static
 RUN mkdir -p logs static

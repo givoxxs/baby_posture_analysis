@@ -1,0 +1,50 @@
+# Git
+.git
+.gitignore
+.github
+
+# Môi trường ảo và cache
+venv/
+__pycache__/
+*.py[cod]
+*$py.class
+*.so
+.Python
+env/
+build/
+develop-eggs/
+dist/
+downloads/
+eggs/
+.eggs/
+lib/
+lib64/
+parts/
+sdist/
+var/
+
+# Logs
+logs/
+*.log
+
+# Dữ liệu và mô hình (nếu cần loại bỏ)
+# data/
+ML_train/
+
+# IDE
+.idea/
+.vscode/
+*.swp
+*.swo
+
+# Các file Docker
+.dockerignore
+Dockerfile
+docker-compose.yml
+
+# Tài liệu
+README.MD
+DEPLOY.md
+setup-vps.sh
+setup-ssh-key.sh
+setup-secrets.sh 

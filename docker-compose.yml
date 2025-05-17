@@ -2,17 +2,11 @@ version: '3.8'
 
 services:
   app:
-    build:
-      context: .
-      args:
-        # Các biến này sẽ được sử dụng trong quá trình build nếu các file không tồn tại
-        # Để trống, vì chúng ta sẽ sử dụng các file thực tế trong volumes
-        ENV_FILE_CONTENT: ""
-        BABYCARE_CONNECTION_JSON: ""
+    image: ${DOCKER_USERNAME}/baby_posture_analysis:latest
     container_name: baby_posture_analysis
     restart: always
     ports:
-      - "8080:8080"
+      - "${PORT:-8080}:8080"
     volumes:
       - ./logs:/app/logs
       - ./static:/app/static

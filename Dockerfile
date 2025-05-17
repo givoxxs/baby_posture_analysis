@@ -7,6 +7,7 @@ RUN apt-get update && apt-get install -y --no-install-recommends \
     build-essential \
     libgl1-mesa-glx \
     libglib2.0-0 \
+    curl \
     && rm -rf /var/lib/apt/lists/*
 
 # Sao chép requirements.txt trước để tận dụng cache của Docker
@@ -34,6 +35,10 @@ RUN if [ ! -f babycare_connection.json ] && [ ! -z "$BABYCARE_CONNECTION_JSON" ]
 
 # Mở cổng mà ứng dụng sẽ chạy
 EXPOSE 8080
+
+# Thêm health check
+HEALTHCHECK --interval=30s --timeout=10s --start-period=30s --retries=3 \
+    CMD curl -f http://localhost:8080/health || exit 1
 
 # Khởi chạy ứng dụng với Uvicorn
 # Sử dụng tham số --ws-ping-interval và --ws-ping-timeout để tối ưu cho WebSocket

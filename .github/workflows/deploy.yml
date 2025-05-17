@@ -17,7 +17,6 @@ jobs:
       - name: Create secret files
         run: |
           echo "${{ secrets.ENV_FILE_CONTENT }}" > .env
-          echo "${{ secrets.BABYCARE_CONNECTION_JSON }}" > babycare_connection.json
 
       - name: Login to Docker Hub
         uses: docker/login-action@v3
@@ -33,7 +32,6 @@ jobs:
           tags: ${{ secrets.DOCKER_USERNAME }}/baby_posture_analysis:latest
           build-args: |
             ENV_FILE_CONTENT=${{ secrets.ENV_FILE_CONTENT }}
-            BABYCARE_CONNECTION_JSON=${{ secrets.BABYCARE_CONNECTION_JSON }}
 
       - name: Create docker-compose env file
         run: |

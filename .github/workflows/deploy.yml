@@ -4,7 +4,6 @@ on:
   push:
     branches:
       - main
-      - master
   workflow_dispatch:
 
 jobs:
@@ -15,7 +14,7 @@ jobs:
       - name: Checkout repository
         uses: actions/checkout@v4
 
-      - name: Create secret files for build
+      - name: Create secret files
         run: |
           echo "${{ secrets.ENV_FILE_CONTENT }}" > .env
           echo "${{ secrets.BABYCARE_CONNECTION_JSON }}" > babycare_connection.json
@@ -26,24 +25,15 @@ jobs:
           username: ${{ secrets.DOCKER_USERNAME }}
           password: ${{ secrets.DOCKER_PASSWORD }}
 
-      - name: Set up Docker Buildx
-        uses: docker/setup-buildx-action@v3
-
       - name: Build and push Docker image
         uses: docker/build-push-action@v5
         with:
           context: .
           push: true
           tags: ${{ secrets.DOCKER_USERNAME }}/baby_posture_analysis:latest
-          cache-from: type=registry,ref=${{ secrets.DOCKER_USERNAME }}/baby_posture_analysis:buildcache
-          cache-to: type=registry,ref=${{ secrets.DOCKER_USERNAME }}/baby_posture_analysis:buildcache,mode=max
-
-      - name: Create .env file for deployment
-        run: |
-          cat > docker-compose.env << EOF
-          DOCKER_USERNAME=${{ secrets.DOCKER_USERNAME }}
-          PORT=${{ secrets.PORT || '8080' }}
-          EOF
+          build-args: |
+            ENV_FILE_CONTENT=${{ secrets.ENV_FILE_CONTENT }}
+            BABYCARE_CONNECTION_JSON=${{ secrets.BABYCARE_CONNECTION_JSON }}
 
       - name: Deploy to VPS
         uses: appleboy/ssh-action@master
@@ -53,52 +43,14 @@ jobs:
           password: ${{ secrets.VPS_PASSWORD }}
           script: |
             # Tạo thư mục dự án nếu chưa tồn tại
-            mkdir -p ~/baby_posture_analysis/logs
-            mkdir -p ~/baby_posture_analysis/static
-
-      - name: Copy necessary files to VPS
-        uses: appleboy/scp-action@master
-        with:
-          host: ${{ secrets.VPS_IP }}
-          username: ${{ secrets.VPS_USERNAME }}
-          password: ${{ secrets.VPS_PASSWORD }}
-          source: ".env,babycare_connection.json,docker-compose.yml,docker-compose.env"
-          target: "~/baby_posture_analysis"
-          strip_components: 0
-
-      - name: Run services
-        uses: appleboy/ssh-action@master
-        with:
-          host: ${{ secrets.VPS_IP }}
-          username: ${{ secrets.VPS_USERNAME }}
-          password: ${{ secrets.VPS_PASSWORD }}
-          script: |
+            mkdir -p ~/baby_posture_analysis
+            
+            # Dừng và xóa container cũ
             cd ~/baby_posture_analysis
-            # Đổi tên docker-compose.env thành .env cho docker-compose
-            mv docker-compose.env .env.docker-compose
-            
-            # Kiểm tra xem có cổng được định nghĩa chưa
-            if [ ! -f .env.docker-compose ] || ! grep -q "PORT=" .env.docker-compose; then
-              echo "PORT=8080" >> .env.docker-compose
-            fi
-            
-            # Dừng dịch vụ cũ nếu đang chạy
             docker-compose down || true
             
             # Pull image mới nhất
             docker pull ${{ secrets.DOCKER_USERNAME }}/baby_posture_analysis:latest
             
-            # Kiểm tra cổng nếu đã được sử dụng
-            PORT=$(grep -oP 'PORT=\K[0-9]+' .env.docker-compose)
-            if [ -z "$PORT" ]; then
-              PORT=8080
-            fi
-            
-            if lsof -Pi :$PORT -sTCP:LISTEN -t >/dev/null ; then
-              echo "Cổng $PORT đã được sử dụng, tự động chuyển sang cổng tiếp theo"
-              PORT=$((PORT + 1))
-              sed -i "s/PORT=[0-9]*/PORT=$PORT/g" .env.docker-compose
-            fi
-            
-            # Khởi động dịch vụ với các biến môi trường từ file .env.docker-compose
-            docker-compose --env-file .env.docker-compose up -d 
+            # Khởi động lại service
+            docker-compose up -d 

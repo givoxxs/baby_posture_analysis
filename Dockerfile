@@ -10,13 +10,20 @@ RUN apt-get update && apt-get install -y --no-install-recommends \
     curl \
     && rm -rf /var/lib/apt/lists/*
 
-# Sao chép requirements.txt trước để tận dụng cache của Docker
-COPY requirements.txt .
+# Sao chép requirements files
+COPY requirements.txt requirements-dev.txt ./
 
 # Tạo phiên bản requirements_linux.txt không có pywin32 và giải quyết xung đột protobuf
 RUN grep -v "pywin32" requirements.txt | grep -v "^protobuf==" > requirements_linux.txt && \
-    echo "protobuf>=5.26.1,<6.0dev" >> requirements_linux.txt && \
-    pip install --no-cache-dir -r requirements_linux.txt
+    echo "protobuf>=5.26.1,<6.0dev" >> requirements_linux.txt
+
+# Cài đặt dependencies dựa trên môi trường
+ARG ENV=production
+RUN if [ "$ENV" = "development" ]; then \
+    pip install --no-cache-dir -r requirements_linux.txt -r requirements-dev.txt; \
+    else \
+    pip install --no-cache-dir -r requirements_linux.txt; \
+    fi
 
 # Tạo thư mục logs và static
 RUN mkdir -p logs static
@@ -25,7 +32,6 @@ RUN mkdir -p logs static
 COPY . .
 
 # Tạo file .env và babycare_connection.json từ biến môi trường nếu chúng không tồn tại
-# Điều này cho phép truyền nội dung của chúng qua Docker build arguments
 ARG ENV_FILE_CONTENT=""
 ARG BABYCARE_CONNECTION_JSON=""
 
@@ -45,5 +51,4 @@ HEALTHCHECK --interval=30s --timeout=10s --start-period=30s --retries=3 \
     CMD curl -f http://localhost:8080/health || exit 1
 
 # Khởi chạy ứng dụng với Uvicorn
-# Sử dụng tham số --ws-ping-interval và --ws-ping-timeout để tối ưu cho WebSocket
 CMD ["uvicorn", "app.main:app", "--host", "0.0.0.0", "--port", "8080", "--ws-ping-interval", "30", "--ws-ping-timeout", "120", "--log-level", "info"] 

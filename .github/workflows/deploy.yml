@@ -35,6 +35,16 @@ jobs:
             ENV_FILE_CONTENT=${{ secrets.ENV_FILE_CONTENT }}
             BABYCARE_CONNECTION_JSON=${{ secrets.BABYCARE_CONNECTION_JSON }}
 
+      - name: Copy files to VPS
+        uses: appleboy/scp-action@master
+        with:
+          host: ${{ secrets.VPS_IP }}
+          username: ${{ secrets.VPS_USERNAME }}
+          password: ${{ secrets.VPS_PASSWORD }}
+          source: "docker-compose.yml,.env,babycare_connection.json"
+          target: "~/baby_posture_analysis"
+          strip_components: 0
+
       - name: Deploy to VPS
         uses: appleboy/ssh-action@master
         with:
@@ -43,10 +53,13 @@ jobs:
           password: ${{ secrets.VPS_PASSWORD }}
           script: |
             # Tạo thư mục dự án nếu chưa tồn tại
-            mkdir -p ~/baby_posture_analysis
+            mkdir -p ~/baby_posture_analysis/logs
+            mkdir -p ~/baby_posture_analysis/static
+            
+            # Di chuyển vào thư mục dự án
+            cd ~/baby_posture_analysis
             
             # Dừng và xóa container cũ
-            cd ~/baby_posture_analysis
             docker-compose down || true
             
             # Pull image mới nhất

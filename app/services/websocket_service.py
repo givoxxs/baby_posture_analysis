@@ -180,12 +180,6 @@ class WebSocketHandler:
                         )
                         continue
 
-                    # if "is_covered" not in analysis_result:
-                    #     logger.warning(
-                    #         "Error: 'is_covered' key is missing in analysis_result"
-                    #     )
-                    #     has_blanket = False
-                    # else:
                     blanket_data = analysis_result.get("analysis").get(
                         "is_covered", False
                     )
@@ -196,8 +190,6 @@ class WebSocketHandler:
                     else:
                         has_blanket = blanket_data
 
-                    # has_blanket = ! has_blanket
-                    # has_blanket = not has_blanket
                     logger.info(f"Blanket status: {has_blanket}")
 
                     await self.manager.send_message(

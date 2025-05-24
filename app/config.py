@@ -1,4 +1,6 @@
 import os
+import tempfile
+import shutil
 from dotenv import load_dotenv
 import firebase_admin
 from firebase_admin import credentials, firestore
@@ -15,16 +17,27 @@ base64_str = os.environ["FIREBASE_CREDENTIAL_BASE64"]
 
 json_bytes = base64.b64decode(base64_str)
 
-with open("babycare_connection.json", "wb") as f:
+# Đường dẫn tuyệt đối cho file credential
+credential_file_path = os.path.join(os.getcwd(), "babycare_connection.json")
+
+# Kiểm tra và xóa nếu tồn tại thư mục cùng tên
+if os.path.exists(credential_file_path):
+    if os.path.isdir(credential_file_path):
+        shutil.rmtree(credential_file_path)
+    elif os.path.isfile(credential_file_path):
+        os.remove(credential_file_path)
+
+# Tạo file credential
+with open(credential_file_path, "wb") as f:
     f.write(json_bytes)
 
 # Initialize Firebase using the JSON credential file
-cred = credentials.Certificate("babycare_connection.json")
+cred = credentials.Certificate(credential_file_path)
 firebase_admin.initialize_app(cred)
 
 # Create credentials object for AsyncClient
 credentials = service_account.Credentials.from_service_account_file(
-    "babycare_connection.json"
+    credential_file_path
 )
 
 # Initialize Firestore clients

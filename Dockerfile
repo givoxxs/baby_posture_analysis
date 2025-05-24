@@ -22,12 +22,16 @@ RUN mkdir -p logs static
 # Sao chép toàn bộ code của ứng dụng
 COPY . .
 
+# Xóa file/thư mục babycare_connection.json nếu tồn tại để tránh conflict
+RUN rm -rf babycare_connection.json
+
 # Tạo file .env từ biến môi trường nếu chúng không tồn tại
 ARG ENV_FILE_CONTENT=""
 
 RUN if [ ! -f .env ] && [ ! -z "$ENV_FILE_CONTENT" ]; then \
     echo "$ENV_FILE_CONTENT" > .env; \
     fi
+
 # Mở cổng mà ứng dụng sẽ chạy
 EXPOSE 8080
 

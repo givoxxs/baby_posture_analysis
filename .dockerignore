@@ -27,6 +27,9 @@ var/
 logs/
 *.log
 
+# Firebase credential files
+babycare_connection.json
+
 # Dữ liệu và mô hình (nếu cần loại bỏ)
 # data/
 ML_train/

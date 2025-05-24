@@ -72,8 +72,6 @@ class DeviceState:
 
     def check_position_baby(self):
         if self.position_baby["position"] == "side":
-            if self.side_threshold == 0:
-                return False
             if (
                 self.position_baby["count"] >= self.side_threshold * 80 / 100
                 and self.position_baby["last_time"] is not None
@@ -86,8 +84,6 @@ class DeviceState:
             else:
                 return False
         elif self.position_baby["position"] == "prone":
-            if self.prone_threshold == 0:
-                return False
             if (
                 self.position_baby["count"] >= self.prone_threshold * 80 / 100
                 and self.position_baby["last_time"] is not None

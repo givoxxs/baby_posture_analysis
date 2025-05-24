@@ -26,9 +26,7 @@ var/
 # Logs
 logs/
 *.log
-
-# Firebase credential files
-babycare_connection.json
+# Logs
 
 # Dữ liệu và mô hình (nếu cần loại bỏ)
 # data/

@@ -10,22 +10,10 @@ import logging
 logger = logging.getLogger(__name__)
 
 
-# ...existing code...
-def convert_utc_timestamp_to_vn_datetime(timestamp: float) -> datetime:
-    """
-    Chuyển đổi timestamp UTC thành datetime theo múi giờ Việt Nam (UTC+7).
-
-    :param timestamp: Unix timestamp (tính theo UTC)
-    :return: datetime theo múi giờ Việt Nam (UTC+7)
-    """
-    vn_tz = timezone(timedelta(hours=7))
-    vn_datetime = datetime.fromtimestamp(timestamp, tz=vn_tz)
-    return vn_datetime
-
-
 def convert_to_vietnam_timezone(timestamp):
     """
     Convert a timestamp to Vietnam timezone (UTC+7)
+    Assumes input timestamp is already in Vietnam time if it's naive
 
     Args:
         timestamp: A datetime object or ISO format string
@@ -38,14 +26,21 @@ def convert_to_vietnam_timezone(timestamp):
             # Convert ISO string to datetime object
             timestamp = datetime.fromisoformat(timestamp)
 
-        # Convert to Vietnam timezone (UTC+7)
+        # Vietnam timezone (UTC+7)
         vietnam_tz = timezone(timedelta(hours=7))
-        # vietnam_time = timestamp.astimezone(vietnam_tz)
-        vietnam_time = datetime.fromtimestamp(
-            timestamp.timestamp(), tz=vietnam_tz
-        )  # Convert to Vietnam timezone
 
-        logger.info(f"Converted time to Vietnam timezone: {vietnam_time}")
+        # If timestamp is naive (no timezone info), assume it's already in Vietnam time
+        if timestamp.tzinfo is None:
+            # Attach Vietnam timezone to the naive datetime
+            vietnam_time = timestamp.replace(tzinfo=vietnam_tz)
+            logger.info(f"Treated naive datetime as Vietnam time: {vietnam_time}")
+        else:
+            # If timestamp has timezone info, convert to Vietnam timezone
+            vietnam_time = timestamp.astimezone(vietnam_tz)
+            logger.info(
+                f"Converted timezone-aware datetime to Vietnam time: {vietnam_time}"
+            )
+
         return vietnam_time
     except Exception as e:
         logger.error(f"Error converting to Vietnam timezone: {e}")
@@ -67,8 +62,12 @@ async def send_event_to_firestore(device_id, event_type, start_time):
     """Record an event in the device's events collection"""
     try:
         if isinstance(start_time, str):
+            debug_timestamp(start_time, "INPUT")
             start_time = datetime.fromisoformat(start_time)
+            debug_timestamp(start_time, "AFTER_FROMISOFORMAT")
+            # Assume input timestamp is already in Vietnam time, just attach timezone
             start_time = convert_to_vietnam_timezone(start_time)
+            debug_timestamp(start_time, "AFTER_CONVERT")
             logger.info(f"Converted start_time to Firestore timestamp: {start_time}")
             if event_type == "back":
                 event_type = "supine"
@@ -133,11 +132,11 @@ async def send_notifications(
 
         if isinstance(start_time, str):
             firestore_timestamp = datetime.fromisoformat(start_time)
-            # Convert to Vietnam timezone
+            # Assume input timestamp is already in Vietnam time, just attach timezone
             firestore_timestamp = convert_to_vietnam_timezone(firestore_timestamp)
         elif isinstance(start_time, datetime):
             firestore_timestamp = start_time
-            # Convert to Vietnam timezone
+            # Assume input timestamp is already in Vietnam time, just attach timezone
             firestore_timestamp = convert_to_vietnam_timezone(firestore_timestamp)
 
         # Map event types to notification types
@@ -380,3 +379,32 @@ def setup_device_thresholds_listener(device_id, callback):
     except Exception as e:
         logger.error(f"Error setting up threshold listener: {e}")
         return None
+
+
+def debug_timestamp(timestamp, label=""):
+    """
+    Debug function to log timestamp information
+    """
+    try:
+        if isinstance(timestamp, str):
+            timestamp = datetime.fromisoformat(timestamp)
+
+        logger.info(f"DEBUG {label}: Original timestamp: {timestamp}")
+        logger.info(f"DEBUG {label}: Timezone info: {timestamp.tzinfo}")
+        logger.info(f"DEBUG {label}: Is naive: {timestamp.tzinfo is None}")
+
+        if timestamp.tzinfo is None:
+            logger.info(f"DEBUG {label}: Timestamp as Unix: {timestamp.timestamp()}")
+
+        # Current times for comparison
+        now_utc = datetime.now(timezone.utc)
+        vietnam_tz = timezone(timedelta(hours=7))
+        now_vietnam = now_utc.astimezone(vietnam_tz)
+        now_local = datetime.now()
+
+        logger.info(f"DEBUG {label}: Current UTC: {now_utc}")
+        logger.info(f"DEBUG {label}: Current Vietnam: {now_vietnam}")
+        logger.info(f"DEBUG {label}: Current Local: {now_local}")
+
+    except Exception as e:
+        logger.error(f"Error in debug_timestamp: {e}")

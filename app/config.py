@@ -22,15 +22,28 @@ current_dir = os.path.dirname(os.path.abspath(__file__))
 project_root = os.path.dirname(current_dir)
 credential_file_path = os.path.join(project_root, "babycare_connection.json")
 
-# Nếu chưa tồn tại file credential, tạo từ biến môi trường
-if not os.path.exists(credential_file_path):
+# Kiểm tra và xử lý file credential
+if os.path.isfile(credential_file_path):
+    # File tồn tại và là file hợp lệ
+    logger.info("Sử dụng file babycare_connection.json đã tồn tại")
+elif os.path.isdir(credential_file_path):
+    # Đường dẫn là thư mục - xóa và tạo lại file từ biến môi trường
+    logger.warning(
+        f"Đường dẫn {credential_file_path} là thư mục, sẽ xóa và tạo lại file"
+    )
+    shutil.rmtree(credential_file_path)
+    base64_str = os.environ["FIREBASE_CREDENTIAL_BASE64"]
+    json_bytes = base64.b64decode(base64_str)
+    with open(credential_file_path, "wb") as f:
+        f.write(json_bytes)
+    logger.info("Đã tạo lại file babycare_connection.json từ environment variable")
+else:
+    # File không tồn tại - tạo từ biến môi trường
     base64_str = os.environ["FIREBASE_CREDENTIAL_BASE64"]
     json_bytes = base64.b64decode(base64_str)
     with open(credential_file_path, "wb") as f:
         f.write(json_bytes)
     logger.info("Đã tạo file babycare_connection.json từ environment variable")
-else:
-    logger.info("Sử dụng file babycare_connection.json đã tồn tại")
 
 # Initialize Firebase using the JSON credential file
 cred = credentials.Certificate(credential_file_path)

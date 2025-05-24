@@ -12,7 +12,7 @@ services:
       - ./static:/app/static
       # Mount các file nhạy cảm từ host vào container (chúng sẽ ghi đè lên các file được tạo trong build)
       - ./.env:/app/.env
-      - ./babycare_connection.json:/app/babycare_connection.json
+      # Không mount file credential - sẽ tạo từ biến môi trường FIREBASE_CREDENTIAL_BASE64
     environment:
       # Biến môi trường cho ứng dụng
       - API_HOST=0.0.0.0

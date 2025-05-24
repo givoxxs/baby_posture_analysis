@@ -62,12 +62,12 @@ async def send_event_to_firestore(device_id, event_type, start_time):
     """Record an event in the device's events collection"""
     try:
         if isinstance(start_time, str):
-            debug_timestamp(start_time, "INPUT")
+            # debug_timestamp(start_time, "INPUT")
             start_time = datetime.fromisoformat(start_time)
-            debug_timestamp(start_time, "AFTER_FROMISOFORMAT")
+            # debug_timestamp(start_time, "AFTER_FROMISOFORMAT")
             # Assume input timestamp is already in Vietnam time, just attach timezone
             start_time = convert_to_vietnam_timezone(start_time)
-            debug_timestamp(start_time, "AFTER_CONVERT")
+            # debug_timestamp(start_time, "AFTER_CONVERT")
             logger.info(f"Converted start_time to Firestore timestamp: {start_time}")
             if event_type == "back":
                 event_type = "supine"

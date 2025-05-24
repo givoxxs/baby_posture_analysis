@@ -62,12 +62,8 @@ async def send_event_to_firestore(device_id, event_type, start_time):
     """Record an event in the device's events collection"""
     try:
         if isinstance(start_time, str):
-            # debug_timestamp(start_time, "INPUT")
             start_time = datetime.fromisoformat(start_time)
-            # debug_timestamp(start_time, "AFTER_FROMISOFORMAT")
-            # Assume input timestamp is already in Vietnam time, just attach timezone
             start_time = convert_to_vietnam_timezone(start_time)
-            # debug_timestamp(start_time, "AFTER_CONVERT")
             logger.info(f"Converted start_time to Firestore timestamp: {start_time}")
             if event_type == "back":
                 event_type = "supine"
@@ -379,32 +375,3 @@ def setup_device_thresholds_listener(device_id, callback):
     except Exception as e:
         logger.error(f"Error setting up threshold listener: {e}")
         return None
-
-
-def debug_timestamp(timestamp, label=""):
-    """
-    Debug function to log timestamp information
-    """
-    try:
-        if isinstance(timestamp, str):
-            timestamp = datetime.fromisoformat(timestamp)
-
-        logger.info(f"DEBUG {label}: Original timestamp: {timestamp}")
-        logger.info(f"DEBUG {label}: Timezone info: {timestamp.tzinfo}")
-        logger.info(f"DEBUG {label}: Is naive: {timestamp.tzinfo is None}")
-
-        if timestamp.tzinfo is None:
-            logger.info(f"DEBUG {label}: Timestamp as Unix: {timestamp.timestamp()}")
-
-        # Current times for comparison
-        now_utc = datetime.now(timezone.utc)
-        vietnam_tz = timezone(timedelta(hours=7))
-        now_vietnam = now_utc.astimezone(vietnam_tz)
-        now_local = datetime.now()
-
-        logger.info(f"DEBUG {label}: Current UTC: {now_utc}")
-        logger.info(f"DEBUG {label}: Current Vietnam: {now_vietnam}")
-        logger.info(f"DEBUG {label}: Current Local: {now_local}")
-
-    except Exception as e:
-        logger.error(f"Error in debug_timestamp: {e}")

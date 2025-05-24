@@ -10,34 +10,37 @@ from google.cloud.firestore_v1.async_client import AsyncClient
 from google.oauth2 import service_account
 import base64
 
-# Load environment variables
+import logging
+
+logger = logging.getLogger(__name__)
+
 load_dotenv()
-
-base64_str = os.environ["FIREBASE_CREDENTIAL_BASE64"]
-
-json_bytes = base64.b64decode(base64_str)
-
 # Đường dẫn tuyệt đối cho file credential
 credential_file_path = os.path.join(os.getcwd(), "babycare_connection.json")
 
-# Kiểm tra và xóa nếu tồn tại thư mục cùng tên
-if os.path.exists(credential_file_path):
-    if os.path.isdir(credential_file_path):
-        shutil.rmtree(credential_file_path)
-    elif os.path.isfile(credential_file_path):
-        os.remove(credential_file_path)
+# Kiểm tra xem file credential đã tồn tại hay chưa
+if not os.path.exists(credential_file_path) or not os.path.isfile(credential_file_path):
+    base64_str = os.environ["FIREBASE_CREDENTIAL_BASE64"]
+    json_bytes = base64.b64decode(base64_str)
 
-# Tạo file credential
-with open(credential_file_path, "wb") as f:
-    f.write(json_bytes)
+    # Kiểm tra và xóa nếu tồn tại thư mục cùng tên
+    if os.path.exists(credential_file_path) and os.path.isdir(credential_file_path):
+        shutil.rmtree(credential_file_path)
+
+    # Tạo file credential mới
+    with open(credential_file_path, "wb") as f:
+        f.write(json_bytes)
+    logger.info("Đã tạo file babycare_connection.json từ environment variable")
+else:
+    logger.info("Sử dụng file babycare_connection.json đã tồn tại")
 
 # Initialize Firebase using the JSON credential file
-cred = credentials.Certificate(credential_file_path)
+cred = credentials.Certificate("babycare_connection.json")
 firebase_admin.initialize_app(cred)
 
 # Create credentials object for AsyncClient
 credentials = service_account.Credentials.from_service_account_file(
-    credential_file_path
+    "babycare_connection.json"
 )
 
 # Initialize Firestore clients

@@ -15,8 +15,11 @@ import logging
 logger = logging.getLogger(__name__)
 
 load_dotenv()
-# Đường dẫn tuyệt đối cho file credential
-credential_file_path = os.path.join(os.getcwd(), "babycare_connection.json")
+# Lấy đường dẫn thư mục hiện tại của file này
+current_dir = os.path.dirname(os.path.abspath(__file__))
+# Lấy thư mục cha (ngang cấp với thư mục app)
+project_root = os.path.dirname(current_dir)
+credential_file_path = os.path.join(project_root, "babycare_connection.json")
 
 # Kiểm tra xem file credential đã tồn tại hay chưa
 if not os.path.exists(credential_file_path) or not os.path.isfile(credential_file_path):
@@ -35,12 +38,12 @@ else:
     logger.info("Sử dụng file babycare_connection.json đã tồn tại")
 
 # Initialize Firebase using the JSON credential file
-cred = credentials.Certificate("babycare_connection.json")
+cred = credentials.Certificate(credential_file_path)
 firebase_admin.initialize_app(cred)
 
 # Create credentials object for AsyncClient
 credentials = service_account.Credentials.from_service_account_file(
-    "babycare_connection.json"
+    credential_file_path
 )
 
 # Initialize Firestore clients

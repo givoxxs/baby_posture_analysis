@@ -40,6 +40,10 @@ jobs:
           PORT=8080
           EOF
 
+      - name: Set file permissions locally
+        run: |
+          chmod 644 docker-compose.yml .env babycare_connection.json .env.docker-compose || true
+
       - name: Copy files to VPS
         uses: appleboy/scp-action@master
         with:
@@ -57,9 +61,10 @@ jobs:
           username: ${{ secrets.VPS_USERNAME }}
           password: ${{ secrets.VPS_PASSWORD }}
           script: |
-            # Tạo thư mục dự án nếu chưa tồn tại
+            # Create project directory if not exists and set permissions
             mkdir -p ~/baby_posture_analysis/logs
             mkdir -p ~/baby_posture_analysis/static
+            chmod -R 755 ~/baby_posture_analysis
             
             # Di chuyển vào thư mục dự án
             cd ~/baby_posture_analysis

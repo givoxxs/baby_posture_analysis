@@ -15,22 +15,17 @@ import logging
 logger = logging.getLogger(__name__)
 
 load_dotenv()
-# Lấy đường dẫn thư mục hiện tại của file này
+
+
+# Đường dẫn file credential
 current_dir = os.path.dirname(os.path.abspath(__file__))
-# Lấy thư mục cha (ngang cấp với thư mục app)
 project_root = os.path.dirname(current_dir)
 credential_file_path = os.path.join(project_root, "babycare_connection.json")
 
-# Kiểm tra xem file credential đã tồn tại hay chưa
-if not os.path.exists(credential_file_path) or not os.path.isfile(credential_file_path):
+# Nếu chưa tồn tại file credential, tạo từ biến môi trường
+if not os.path.exists(credential_file_path):
     base64_str = os.environ["FIREBASE_CREDENTIAL_BASE64"]
     json_bytes = base64.b64decode(base64_str)
-
-    # Kiểm tra và xóa nếu tồn tại thư mục cùng tên
-    if os.path.exists(credential_file_path) and os.path.isdir(credential_file_path):
-        shutil.rmtree(credential_file_path)
-
-    # Tạo file credential mới
     with open(credential_file_path, "wb") as f:
         f.write(json_bytes)
     logger.info("Đã tạo file babycare_connection.json từ environment variable")

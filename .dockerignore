@@ -38,6 +38,9 @@ ML_train/
 *.swp
 *.swo
 
+blanket_detection_report_pipeline.txt
+blanket_detection_results_pipeline.csv
+
 # Các file Docker
 .dockerignore
 Dockerfile

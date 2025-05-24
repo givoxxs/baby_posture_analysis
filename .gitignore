@@ -34,6 +34,8 @@ logs/app.log
 data
 data_cleaned
 data_baby_posture
+dap_chan
+khong_chan
 
 anh.jpg
 anh_1.jpg
@@ -44,3 +46,6 @@ FB.txt
 test.py
 test.ipynb
 baby_1.jpg
+
+blanket_detection_report_pipeline.txt
+blanket_detection_results_pipeline.csv

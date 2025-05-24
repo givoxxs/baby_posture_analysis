@@ -187,12 +187,12 @@ class WebSocketHandler:
                     #     has_blanket = False
                     # else:
                     blanket_data = analysis_result.get("analysis").get(
-                        "is_covered", False
+                        "is_covered", True
                     )
                     logger.info(f"Blanket data: {blanket_data}")
                     if not isinstance(blanket_data, bool):
                         logger.warning("Error: 'blanket' data is not a boolean")
-                        has_blanket = False
+                        has_blanket = True
                     else:
                         has_blanket = blanket_data
 

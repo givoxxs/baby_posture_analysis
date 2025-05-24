@@ -26,7 +26,7 @@ class DeviceState:
             "last_time": None,
         }
         self.blanket_baby = {
-            "is_covered": False,
+            "is_covered": True,
             "count": 0,
             "first_time": None,
             "last_time": None,

@@ -216,7 +216,9 @@ class BabyPostureAnalysisPipeline:
             coverage_ratio: Tỉ lệ phủ (0-1)
         """
         if not results.pose_landmarks:
-            return False, 0.0
+            # Mặc định là có đắp chăn khi không phát hiện được pose landmarks
+            logger.info("No pose landmarks detected, defaulting to covered=True")
+            return True, 1.0
 
         # [LEFT_HIP, RIGHT_HIP, LEFT_KNEE, RIGHT_KNEE, LEFT_ANKLE, RIGHT_ANKLE]
         body_indices = [23, 24, 25, 26, 27, 28]
@@ -423,6 +425,13 @@ class BabyPostureAnalysisPipeline:
                     "image_dimensions": {
                         "width": original_image.shape[1],
                         "height": original_image.shape[0],
+                    },
+                    "analysis": {
+                        "position": "Không xác định",
+                        "position_id": None,
+                        "probabilities": {},
+                        "is_covered": True,  # Mặc định là có đắp chăn khi không xác định được
+                        "coverage_ratio": 0.0,
                     },
                 }
             # Dự đoán tư thế

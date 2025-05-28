@@ -4,6 +4,7 @@ from typing import Optional
 import traceback
 import logging
 from datetime import datetime
+from time import time
 
 from app.services.analysis_service import (
     AnalysisService,
@@ -35,6 +36,7 @@ async def analyze_baby_posture(
     - Complete analysis including posture classification, face covering detection, and blanket covering detection
     """
     try:
+        start_time = time()
         # Validate timestamp if provided
         if timestamp:
             try:
@@ -75,9 +77,12 @@ async def analyze_baby_posture(
             return JSONResponse(status_code=422, content=result)
 
         # Structure response in a user-friendly format
+        end_time = time()
+        api_processing_time_ms = int((end_time - start_time) * 1000)
         response = {
             "success": True,
             "timestamp": result["timestamp"],
+            "api_processing_time_ms": api_processing_time_ms,
             "posture": {
                 "position": result["analysis"]["position"],
                 "position_id": result["analysis"]["position_id"],

@@ -348,30 +348,111 @@ def setup_device_thresholds_listener(device_id, callback):
     try:
         # Get reference to the device document
         doc_ref = db.collection("devices").document(device_id)
+        logger.info(f"Setting up threshold listener for device: {device_id}")
 
         # Define callback function for the listener
         def on_snapshot(doc_snapshot, changes, read_time):
             try:
-                # For document listener, doc_snapshot is the document itself, not a list
-                if doc_snapshot.exists:
-                    device_data = doc_snapshot.to_dict()
-                    thresholds = {
-                        "sideThreshold": device_data.get("sideThreshold", 10),
-                        "proneThreshold": device_data.get("proneThreshold", 10),
-                        "noBlanketThreshold": device_data.get(
-                            "noBlanketThreshold", 100
-                        ),
-                    }
-                    logger.info(
-                        f"Thresholds updated for device {device_id}: {thresholds}"
-                    )
-                    # Call the provided callback with the new thresholds
-                    callback(thresholds)
-            except Exception as e:
-                logger.error(f"Error in threshold listener callback: {e}")
+                logger.info(f"Threshold listener triggered for device {device_id}")
 
-        # Set up the listener
-        return doc_ref.on_snapshot(on_snapshot)
+                # Check if this is a single document listener or collection listener
+                if hasattr(doc_snapshot, "exists"):
+                    # Single document listener
+                    if doc_snapshot.exists:
+                        device_data = doc_snapshot.to_dict()
+                        logger.info(
+                            f"Document data for device {device_id}: {device_data}"
+                        )
+
+                        thresholds = {
+                            "sideThreshold": device_data.get("sideThreshold", 10),
+                            "proneThreshold": device_data.get("proneThreshold", 10),
+                            "noBlanketThreshold": device_data.get(
+                                "noBlanketThreshold", 100
+                            ),
+                        }
+                        logger.info(
+                            f"Extracted thresholds for device {device_id}: {thresholds}"
+                        )
+
+                        # Call the provided callback with the new thresholds
+                        try:
+                            callback(thresholds)
+                            logger.info(
+                                f"Successfully called callback for device {device_id}"
+                            )
+                        except Exception as callback_error:
+                            logger.error(
+                                f"Error calling threshold callback: {callback_error}"
+                            )
+                    else:
+                        logger.warning(
+                            f"Document does not exist for device {device_id}"
+                        )
+                else:
+                    # Collection listener - iterate through documents
+                    for doc in doc_snapshot:
+                        if doc.exists:
+                            device_data = doc.to_dict()
+                            logger.info(f"Document data from collection: {device_data}")
+
+                            thresholds = {
+                                "sideThreshold": device_data.get("sideThreshold", 10),
+                                "proneThreshold": device_data.get("proneThreshold", 10),
+                                "noBlanketThreshold": device_data.get(
+                                    "noBlanketThreshold", 100
+                                ),
+                            }
+
+                            try:
+                                callback(thresholds)
+                                logger.info(
+                                    f"Successfully called callback for device {device_id}"
+                                )
+                            except Exception as callback_error:
+                                logger.error(
+                                    f"Error calling threshold callback: {callback_error}"
+                                )
+
+            except Exception as e:
+                logger.error(
+                    f"Error in threshold listener callback for device {device_id}: {e}"
+                )
+
+        # Set up the listener with error handling
+        try:
+            listener = doc_ref.on_snapshot(on_snapshot)
+            logger.info(
+                f"Successfully set up threshold listener for device {device_id}"
+            )
+            return listener
+        except Exception as listener_error:
+            logger.error(
+                f"Failed to create listener for device {device_id}: {listener_error}"
+            )
+            return None
+
     except Exception as e:
-        logger.error(f"Error setting up threshold listener: {e}")
+        logger.error(f"Error setting up threshold listener for device {device_id}: {e}")
         return None
+
+
+async def test_device_connection(device_id):
+    """
+    Test function to check if device exists and can be accessed in Firestore
+    """
+    try:
+        logger.info(f"Testing connection to device {device_id}")
+        device_doc = await db.collection("devices").document(device_id).get()
+
+        if device_doc.exists:
+            data = device_doc.to_dict()
+            logger.info(f"Device {device_id} exists with data: {data}")
+            return True
+        else:
+            logger.warning(f"Device {device_id} does not exist in Firestore")
+            return False
+
+    except Exception as e:
+        logger.error(f"Error testing device connection {device_id}: {e}")
+        return False

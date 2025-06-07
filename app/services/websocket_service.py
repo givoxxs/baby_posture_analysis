@@ -9,6 +9,7 @@ from app.services.notification_service import (
     setup_device_thresholds_listener,
     upload_to_cloudinary,
     send_notifications,
+    test_device_connection,
 )
 import logging
 
@@ -91,6 +92,11 @@ class WebSocketHandler:
             await self.manager.connect(websocket, device_id)
             logger.info(f"Device connected with ID: {device_id}")
 
+            # Test device connection first
+            connection_test = await test_device_connection(device_id)
+            if not connection_test:
+                logger.error(f"Device connection test failed for {device_id}")
+
             thresholds = await get_device_thresholds(device_id)
             if not thresholds:
                 await self.manager.send_message(
@@ -113,8 +119,17 @@ class WebSocketHandler:
                     device_id, new_thresholds
                 ),
             )
-            self.threshold_listeners[device_id] = listener
-            logger.info(f"Threshold listener set up for device {device_id}")
+
+            if listener:
+                self.threshold_listeners[device_id] = listener
+                logger.info(
+                    f"Threshold listener successfully set up for device {device_id}"
+                )
+            else:
+                logger.error(
+                    f"Failed to set up threshold listener for device {device_id}"
+                )
+                # Continue without listener, but log the issue
 
             while True:
                 try:
@@ -247,7 +262,11 @@ class WebSocketHandler:
                         elif now_position == "prone":
                             threshold = device_state.prone_threshold
 
-                        if threshold != 0 and (
+                        if threshold == 0:
+                            logger.info(
+                                f"Position notification skipped for {now_position} - threshold is 0"
+                            )
+                        elif (
                             device_state.last_notification_time[now_position] is None
                             or device_state.calc_time(
                                 device_state.last_notification_time[now_position],
@@ -288,7 +307,11 @@ class WebSocketHandler:
                     check_blanket = device_state.check_blanket_baby()
                     if check_blanket:
                         # Kiểm tra threshold trước khi gửi notification
-                        if device_state.no_blanket_threshold != 0 and (
+                        if device_state.no_blanket_threshold == 0:
+                            logger.info(
+                                "No blanket notification skipped - threshold is 0"
+                            )
+                        elif (
                             device_state.last_notification_time["noBlanket"] is None
                             or device_state.calc_time(
                                 device_state.last_notification_time["noBlanket"],
@@ -353,21 +376,39 @@ class WebSocketHandler:
                 # Clean up the Firestore threshold listener if it exists
                 if device_id in self.threshold_listeners:
                     logger.info(f"Removing threshold listener for device {device_id}")
-                    # Call .close() or .unsubscribe() on the listener to clean up the Firebase connection
                     listener = self.threshold_listeners[device_id]
                     if listener:
                         try:
-                            listener.unsubscribe()
-                        except:
-                            # Sometimes .unsubscribe() might not be available, try .close()
-                            try:
-                                listener.close()
-                            except Exception as listener_error:
-                                logger.error(
-                                    f"Error closing threshold listener: {listener_error}"
+                            # Try different methods to close the listener
+                            if hasattr(listener, "unsubscribe"):
+                                listener.unsubscribe()
+                                logger.info(
+                                    f"Successfully unsubscribed threshold listener for device {device_id}"
                                 )
+                            elif hasattr(listener, "close"):
+                                listener.close()
+                                logger.info(
+                                    f"Successfully closed threshold listener for device {device_id}"
+                                )
+                            elif callable(listener):
+                                # Sometimes the listener is a callable that stops the listener
+                                listener()
+                                logger.info(
+                                    f"Successfully called threshold listener cleanup for device {device_id}"
+                                )
+                            else:
+                                logger.warning(
+                                    f"Unknown listener type for device {device_id}: {type(listener)}"
+                                )
+                        except Exception as listener_error:
+                            logger.error(
+                                f"Error closing threshold listener for device {device_id}: {listener_error}"
+                            )
                     # Remove the listener from the dictionary
                     del self.threshold_listeners[device_id]
+                    logger.info(
+                        f"Removed threshold listener from dictionary for device {device_id}"
+                    )
 
                 # Remove device from the active devices list
                 if device_id in self.devices:

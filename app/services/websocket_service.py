@@ -197,120 +197,159 @@ class WebSocketHandler:
                                 has_blanket, timestamp
                             )
 
-                    # Đọc lại threshold mới nhất từ Firestore và cập nhật device_state
-                    current_thresholds = await get_device_thresholds(device_id)
-                    device_state.side_threshold = current_thresholds.get(
-                        "sideThreshold", 10
-                    )
-                    device_state.prone_threshold = current_thresholds.get(
-                        "proneThreshold", 10
-                    )
-                    device_state.no_blanket_threshold = current_thresholds.get(
-                        "noBlanketThreshold", 100
-                    )
-
-                    logger.info(
-                        f"Updated thresholds for device {device_id}: side={device_state.side_threshold}, prone={device_state.prone_threshold}, no_blanket={device_state.no_blanket_threshold}"
-                    )
-
                     check_position = device_state.check_position_baby()
                     if check_position:
-                        now_position = device_state.position_baby["position"]
-
-                        threshold = 0
-                        if now_position == "side":
-                            threshold = device_state.side_threshold
-                        elif now_position == "prone":
-                            threshold = device_state.prone_threshold
-
+                        # Có alert position, đọc threshold mới từ Firebase
                         logger.info(
-                            f"Using {now_position} threshold for device {device_id}: {threshold}"
+                            f"Position alert detected, reading latest thresholds for device {device_id}"
+                        )
+                        current_thresholds = await get_device_thresholds(device_id)
+                        device_state.side_threshold = current_thresholds.get(
+                            "sideThreshold", 10
+                        )
+                        device_state.prone_threshold = current_thresholds.get(
+                            "proneThreshold", 10
+                        )
+                        device_state.no_blanket_threshold = current_thresholds.get(
+                            "noBlanketThreshold", 100
                         )
 
-                        if threshold == 0:
-                            logger.info(
-                                f"Position notification skipped for {now_position} - threshold is 0"
-                            )
-                        elif (
-                            device_state.last_notification_time[now_position] is None
-                            or device_state.calc_time(
-                                device_state.last_notification_time[now_position],
-                                timestamp,
-                            )
-                            > 20
-                        ):
-                            device_state.last_notification_time[now_position] = (
-                                timestamp
-                            )
-                            image_url = await upload_to_cloudinary(image_base64)
+                        logger.info(
+                            f"Updated thresholds for device {device_id}: side={device_state.side_threshold}, prone={device_state.prone_threshold}, no_blanket={device_state.no_blanket_threshold}"
+                        )
 
-                            await send_notifications(
-                                device_id,
-                                now_position,
-                                # device_state.position_baby["count"],
-                                device_state.calc_time(
-                                    device_state.position_baby["first_time"],
-                                    device_state.position_baby["last_time"],
-                                ),
-                                timestamp,
-                                image_url,
-                            )
+                        # Kiểm tra lại với threshold mới
+                        check_position_updated = device_state.check_position_baby()
+                        if check_position_updated:
+                            now_position = device_state.position_baby["position"]
+
+                            threshold = 0
+                            if now_position == "side":
+                                threshold = device_state.side_threshold
+                            elif now_position == "prone":
+                                threshold = device_state.prone_threshold
+
                             logger.info(
-                                f"Notification sent for {now_position} position."
+                                f"Using updated {now_position} threshold for device {device_id}: {threshold}"
                             )
-                            await self.manager.send_message(
-                                device_id,
-                                {
-                                    "type": "alert",
-                                    "timestamp": timestamp,
-                                    "message": f"Position alert: {now_position}",
-                                    "position": now_position,
-                                    "image_url": image_url,
-                                },
+
+                            if threshold == 0:
+                                logger.info(
+                                    f"Position notification skipped for {now_position} - threshold is 0"
+                                )
+                            elif (
+                                device_state.last_notification_time[now_position]
+                                is None
+                                or device_state.calc_time(
+                                    device_state.last_notification_time[now_position],
+                                    timestamp,
+                                )
+                                > 20
+                            ):
+                                device_state.last_notification_time[now_position] = (
+                                    timestamp
+                                )
+                                image_url = await upload_to_cloudinary(image_base64)
+
+                                await send_notifications(
+                                    device_id,
+                                    now_position,
+                                    # device_state.position_baby["count"],
+                                    device_state.calc_time(
+                                        device_state.position_baby["first_time"],
+                                        device_state.position_baby["last_time"],
+                                    ),
+                                    timestamp,
+                                    image_url,
+                                )
+                                logger.info(
+                                    f"Notification sent for {now_position} position."
+                                )
+                                await self.manager.send_message(
+                                    device_id,
+                                    {
+                                        "type": "alert",
+                                        "timestamp": timestamp,
+                                        "message": f"Position alert: {now_position}",
+                                        "position": now_position,
+                                        "image_url": image_url,
+                                    },
+                                )
+                        else:
+                            logger.info(
+                                f"Position alert cancelled after threshold update for device {device_id}"
                             )
 
                     check_blanket = device_state.check_blanket_baby()
                     if check_blanket:
-                        no_blanket_threshold = device_state.no_blanket_threshold
-
+                        # Có alert blanket, đọc threshold mới từ Firebase (nếu chưa đọc trong position check)
                         logger.info(
-                            f"Using no blanket threshold for device {device_id}: {no_blanket_threshold}"
+                            f"Blanket alert detected, reading latest thresholds for device {device_id}"
+                        )
+                        current_thresholds = await get_device_thresholds(device_id)
+                        device_state.side_threshold = current_thresholds.get(
+                            "sideThreshold", 10
+                        )
+                        device_state.prone_threshold = current_thresholds.get(
+                            "proneThreshold", 10
+                        )
+                        device_state.no_blanket_threshold = current_thresholds.get(
+                            "noBlanketThreshold", 100
                         )
 
-                        if no_blanket_threshold == 0:
+                        logger.info(
+                            f"Updated thresholds for device {device_id}: side={device_state.side_threshold}, prone={device_state.prone_threshold}, no_blanket={device_state.no_blanket_threshold}"
+                        )
+
+                        # Kiểm tra lại với threshold mới
+                        check_blanket_updated = device_state.check_blanket_baby()
+                        if check_blanket_updated:
+                            no_blanket_threshold = device_state.no_blanket_threshold
+
                             logger.info(
-                                "No blanket notification skipped - threshold is 0"
+                                f"Using updated no blanket threshold for device {device_id}: {no_blanket_threshold}"
                             )
-                        elif (
-                            device_state.last_notification_time["noBlanket"] is None
-                            or device_state.calc_time(
-                                device_state.last_notification_time["noBlanket"],
-                                timestamp,
-                            )
-                            > 20
-                        ):
-                            device_state.last_notification_time["noBlanket"] = timestamp
-                            image_url = await upload_to_cloudinary(image_base64)
-                            await send_notifications(
-                                device_id,
-                                "noblanket",
-                                # device_state.blanket_baby["count"],
-                                device_state.calc_time(
-                                    device_state.blanket_baby["first_time"],
-                                    device_state.blanket_baby["last_time"],
-                                ),
-                                timestamp,
-                                image_url,
-                            )
-                            logger.info("Notification sent for no blanket.")
-                            await self.manager.send_message(
-                                device_id,
-                                {
-                                    "type": "alert",
-                                    "timestamp": timestamp,
-                                    "message": "No blanket detected",
-                                    "image_url": image_url,
-                                },
+
+                            if no_blanket_threshold == 0:
+                                logger.info(
+                                    "No blanket notification skipped - threshold is 0"
+                                )
+                            elif (
+                                device_state.last_notification_time["noBlanket"] is None
+                                or device_state.calc_time(
+                                    device_state.last_notification_time["noBlanket"],
+                                    timestamp,
+                                )
+                                > 20
+                            ):
+                                device_state.last_notification_time["noBlanket"] = (
+                                    timestamp
+                                )
+                                image_url = await upload_to_cloudinary(image_base64)
+                                await send_notifications(
+                                    device_id,
+                                    "noblanket",
+                                    # device_state.blanket_baby["count"],
+                                    device_state.calc_time(
+                                        device_state.blanket_baby["first_time"],
+                                        device_state.blanket_baby["last_time"],
+                                    ),
+                                    timestamp,
+                                    image_url,
+                                )
+                                logger.info("Notification sent for no blanket.")
+                                await self.manager.send_message(
+                                    device_id,
+                                    {
+                                        "type": "alert",
+                                        "timestamp": timestamp,
+                                        "message": "No blanket detected",
+                                        "image_url": image_url,
+                                    },
+                                )
+                        else:
+                            logger.info(
+                                f"Blanket alert cancelled after threshold update for device {device_id}"
                             )
 
                 except WebSocketDisconnect:

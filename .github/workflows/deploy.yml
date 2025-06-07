@@ -75,5 +75,8 @@ jobs:
             # Pull image mới nhất
             docker pull ${{ secrets.DOCKER_USERNAME }}/baby_posture_analysis:latest
             
+            # Dọn dẹp các image cũ không sử dụng
+            docker image prune -f || true
+            
             # Khởi động lại service với biến môi trường
             docker-compose --env-file .env.docker-compose up -d 

@@ -88,10 +88,6 @@ async def analyze_baby_posture(
                 "position_id": result["analysis"]["position_id"],
                 "probabilities": result["analysis"]["probabilities"],
             },
-            # "face": {
-            #     "is_covered": result['analysis']["face_covered"],
-            #     "confidence": result['analysis']["face_confidence"]
-            # },
             "blanket": {
                 "is_covered": result["analysis"]["is_covered"],
                 "coverage_ratio": result["analysis"]["coverage_ratio"],

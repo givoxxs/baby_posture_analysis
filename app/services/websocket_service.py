@@ -1,12 +1,10 @@
 from typing import Dict, Any
-import asyncio
 from app.config import db
 from fastapi import WebSocket, WebSocketDisconnect
 from app.services.analysis_service import get_singleton_analysis_service
 from app.services.device_state import DeviceState
 from app.services.notification_service import (
     get_device_thresholds,
-    setup_device_thresholds_listener,
     upload_to_cloudinary,
     send_notifications,
     test_device_connection,
@@ -41,40 +39,6 @@ class WebSocketHandler:
     def __init__(self):
         self.devices = {}
         self.manager = ConnectionManager()
-        self.threshold_listeners = {}
-
-    def update_thresholds(self, device_id, new_thresholds):
-        """
-        Callback function for threshold changes
-        Updates the device thresholds when they change in Firebase
-        """
-        if device_id in self.devices:
-            logger.info(f"Updating thresholds for device {device_id}: {new_thresholds}")
-            device_state = self.devices[device_id]
-            device_state.side_threshold = new_thresholds.get(
-                "sideThreshold", device_state.side_threshold
-            )
-            device_state.prone_threshold = new_thresholds.get(
-                "proneThreshold", device_state.prone_threshold
-            )
-            device_state.no_blanket_threshold = new_thresholds.get(
-                "noBlanketThreshold", device_state.no_blanket_threshold
-            )
-
-            # Send notification to device about threshold updates
-            asyncio.create_task(
-                self.manager.send_message(
-                    device_id,
-                    {
-                        "type": "threshold_update",
-                        "thresholds": {
-                            "sideThreshold": device_state.side_threshold,
-                            "proneThreshold": device_state.prone_threshold,
-                            "noBlanketThreshold": device_state.no_blanket_threshold,
-                        },
-                    },
-                )
-            )
 
     async def update_device_online_status(self, device_id, is_online):
         """
@@ -111,25 +75,6 @@ class WebSocketHandler:
 
             device_state = DeviceState(device_id, thresholds)
             self.devices[device_id] = device_state
-
-            # Set up threshold listener
-            listener = setup_device_thresholds_listener(
-                device_id,
-                lambda new_thresholds: self.update_thresholds(
-                    device_id, new_thresholds
-                ),
-            )
-
-            if listener:
-                self.threshold_listeners[device_id] = listener
-                logger.info(
-                    f"Threshold listener successfully set up for device {device_id}"
-                )
-            else:
-                logger.error(
-                    f"Failed to set up threshold listener for device {device_id}"
-                )
-                # Continue without listener, but log the issue
 
             while True:
                 try:
@@ -252,15 +197,35 @@ class WebSocketHandler:
                                 has_blanket, timestamp
                             )
 
+                    # Đọc lại threshold mới nhất từ Firestore và cập nhật device_state
+                    current_thresholds = await get_device_thresholds(device_id)
+                    device_state.side_threshold = current_thresholds.get(
+                        "sideThreshold", 10
+                    )
+                    device_state.prone_threshold = current_thresholds.get(
+                        "proneThreshold", 10
+                    )
+                    device_state.no_blanket_threshold = current_thresholds.get(
+                        "noBlanketThreshold", 100
+                    )
+
+                    logger.info(
+                        f"Updated thresholds for device {device_id}: side={device_state.side_threshold}, prone={device_state.prone_threshold}, no_blanket={device_state.no_blanket_threshold}"
+                    )
+
                     check_position = device_state.check_position_baby()
                     if check_position:
                         now_position = device_state.position_baby["position"]
-                        # Kiểm tra threshold trước khi gửi notification
+
                         threshold = 0
                         if now_position == "side":
                             threshold = device_state.side_threshold
                         elif now_position == "prone":
                             threshold = device_state.prone_threshold
+
+                        logger.info(
+                            f"Using {now_position} threshold for device {device_id}: {threshold}"
+                        )
 
                         if threshold == 0:
                             logger.info(
@@ -306,8 +271,13 @@ class WebSocketHandler:
 
                     check_blanket = device_state.check_blanket_baby()
                     if check_blanket:
-                        # Kiểm tra threshold trước khi gửi notification
-                        if device_state.no_blanket_threshold == 0:
+                        no_blanket_threshold = device_state.no_blanket_threshold
+
+                        logger.info(
+                            f"Using no blanket threshold for device {device_id}: {no_blanket_threshold}"
+                        )
+
+                        if no_blanket_threshold == 0:
                             logger.info(
                                 "No blanket notification skipped - threshold is 0"
                             )
@@ -373,42 +343,6 @@ class WebSocketHandler:
         finally:
             try:
                 # await self.update_device_online_status(device_id, False)
-                # Clean up the Firestore threshold listener if it exists
-                if device_id in self.threshold_listeners:
-                    logger.info(f"Removing threshold listener for device {device_id}")
-                    listener = self.threshold_listeners[device_id]
-                    if listener:
-                        try:
-                            # Try different methods to close the listener
-                            if hasattr(listener, "unsubscribe"):
-                                listener.unsubscribe()
-                                logger.info(
-                                    f"Successfully unsubscribed threshold listener for device {device_id}"
-                                )
-                            elif hasattr(listener, "close"):
-                                listener.close()
-                                logger.info(
-                                    f"Successfully closed threshold listener for device {device_id}"
-                                )
-                            elif callable(listener):
-                                # Sometimes the listener is a callable that stops the listener
-                                listener()
-                                logger.info(
-                                    f"Successfully called threshold listener cleanup for device {device_id}"
-                                )
-                            else:
-                                logger.warning(
-                                    f"Unknown listener type for device {device_id}: {type(listener)}"
-                                )
-                        except Exception as listener_error:
-                            logger.error(
-                                f"Error closing threshold listener for device {device_id}: {listener_error}"
-                            )
-                    # Remove the listener from the dictionary
-                    del self.threshold_listeners[device_id]
-                    logger.info(
-                        f"Removed threshold listener from dictionary for device {device_id}"
-                    )
 
                 # Remove device from the active devices list
                 if device_id in self.devices:

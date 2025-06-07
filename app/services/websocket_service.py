@@ -240,7 +240,14 @@ class WebSocketHandler:
                     check_position = device_state.check_position_baby()
                     if check_position:
                         now_position = device_state.position_baby["position"]
-                        if (
+                        # Kiểm tra threshold trước khi gửi notification
+                        threshold = 0
+                        if now_position == "side":
+                            threshold = device_state.side_threshold
+                        elif now_position == "prone":
+                            threshold = device_state.prone_threshold
+
+                        if threshold != 0 and (
                             device_state.last_notification_time[now_position] is None
                             or device_state.calc_time(
                                 device_state.last_notification_time[now_position],
@@ -280,7 +287,8 @@ class WebSocketHandler:
 
                     check_blanket = device_state.check_blanket_baby()
                     if check_blanket:
-                        if (
+                        # Kiểm tra threshold trước khi gửi notification
+                        if device_state.no_blanket_threshold != 0 and (
                             device_state.last_notification_time["noBlanket"] is None
                             or device_state.calc_time(
                                 device_state.last_notification_time["noBlanket"],
@@ -292,7 +300,7 @@ class WebSocketHandler:
                             image_url = await upload_to_cloudinary(image_base64)
                             await send_notifications(
                                 device_id,
-                                "no_blanket",
+                                "noblanket",
                                 # device_state.blanket_baby["count"],
                                 device_state.calc_time(
                                     device_state.blanket_baby["first_time"],

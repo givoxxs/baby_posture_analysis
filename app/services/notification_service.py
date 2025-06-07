@@ -139,7 +139,7 @@ async def send_notifications(
         notification_type_map = {
             "side": "Side",
             "prone": "Prone",
-            "no_blanket": "NoBlanket",
+            "noblanket": "NoBlanket",
             "has_blanket": "Blanket",
         }
 

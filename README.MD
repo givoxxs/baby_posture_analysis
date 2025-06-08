@@ -23,6 +23,7 @@ A sophisticated system for analyzing baby posture in images to detect potential 
 - **Detailed Analysis Reports**: Get comprehensive insights on posture risks
 - **API-First Design**: RESTful endpoints for easy integration with other systems
 - **Interactive Web Interface**: Simple visual testing of the analysis system
+- **🔥 Firebase Real-time Threshold Listener**: Tự động cập nhật threshold từ Firebase mà không cần đọc liên tục
 
 ## 🏗️ Architecture
 
@@ -241,3 +242,96 @@ This project is licensed under the MIT License - see the LICENSE file for detail
 Project Developer - [Phan Văn Toàn](mailto:phanvantoan.contact@gmail.com)
 
 Project Link: [https://github.com/givoxxs/baby_posture_analysis](https://github.com/givoxxs/baby_posture_analysis)
+
+## 🔥 Firebase Threshold Listener
+
+### Tính năng mới: Real-time Threshold Updates
+
+Hệ thống hiện đã được tích hợp Firebase Snapshot Listener để lắng nghe thay đổi threshold values theo thời gian thực, loại bỏ việc phải đọc liên tục.
+
+### Cách hoạt động
+
+1. **Snapshot Listener**: Tự động lắng nghe thay đổi từ Firebase Firestore
+2. **Real-time Updates**: Cập nhật threshold ngay lập tức khi có thay đổi
+3. **Performance Optimization**: Giảm thiểu số lần gọi Firebase API
+4. **Automatic Cleanup**: Tự động dọn dẹp listener khi device disconnect
+
+### Threshold Values
+
+- `sideThreshold`: Ngưỡng thời gian cho tư thế nằm nghiêng (giây)
+- `proneThreshold`: Ngưỡng thời gian cho tư thế nằm sấp (giây)  
+- `noBlanketThreshold`: Ngưỡng thời gian không có chăn (giây)
+
+### Testing Firebase Threshold Listener
+
+#### Chạy Test Cơ Bản
+
+```bash
+# Sử dụng script được cung cấp
+python run_threshold_test.py
+```
+
+#### Test Manual
+
+```bash
+# Chạy test trực tiếp
+python app/tests/test_firebase_threshold_listener.py
+```
+
+#### Quy trình Test
+
+1. **Khởi chạy test**: Script sẽ kết nối tới device test ID
+2. **Thiết lập listener**: Đăng ký lắng nghe thay đổi threshold
+3. **Thay đổi threshold trên Firebase**:
+   - Truy cập [Firebase Console](https://console.firebase.google.com/)
+   - Tìm collection `devices`
+   - Tìm document với ID: `18ff6551-820b-4aad-b714-1143629970f0`
+   - Thay đổi các field: `sideThreshold`, `proneThreshold`, `noBlanketThreshold`
+4. **Quan sát kết quả**: Test sẽ ghi nhận và hiển thị mọi thay đổi trong 60 giây
+
+#### Kết quả mong đợi
+
+```
+🔥 THRESHOLD THAY ĐỔI LÚC 14:30:25:
+   Side Threshold: 15
+   Prone Threshold: 20  
+   No Blanket Threshold: 120
+```
+
+### Implementation Details
+
+#### Firebase Threshold Listener Service
+
+- **File**: `app/services/firebase_threshold_listener.py`
+- **Singleton Pattern**: Đảm bảo chỉ có một instance duy nhất
+- **Thread-safe**: An toàn cho môi trường đa luồng
+- **Auto-cleanup**: Tự động dọn dẹp khi không sử dụng
+
+#### WebSocket Integration
+
+- **Real-time updates**: Threshold được cập nhật ngay trong WebSocket connection
+- **No polling**: Không cần đọc threshold định kỳ
+- **Efficient**: Chỉ cập nhật khi có thay đổi thực sự
+
+#### Device State Management
+
+- **Dynamic thresholds**: DeviceState tự động cập nhật threshold từ listener
+- **Backward compatibility**: Vẫn hỗ trợ cách cũ nếu cần
+- **Logging**: Ghi log đầy đủ cho việc debug
+
+### Benefits
+
+1. **Performance**: Giảm số lần gọi Firebase API
+2. **Real-time**: Cập nhật ngay lập tức khi threshold thay đổi
+3. **Reliability**: Ít bị lỗi do network hoặc rate limiting
+4. **Scalability**: Có thể handle nhiều devices đồng thời
+5. **Maintainability**: Code sạch và dễ bảo trì
+
+### Configuration
+
+Threshold listener tự động hoạt động khi:
+- Device kết nối qua WebSocket
+- Firebase connection đã được thiết lập
+- Device tồn tại trong Firestore
+
+Không cần cấu hình thêm gì!

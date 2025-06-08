@@ -2,8 +2,10 @@ from datetime import datetime
 from app.services.notification_service import send_event_to_firestore
 import os
 from dotenv import load_dotenv
+import logging
 
 load_dotenv()
+logger = logging.getLogger(__name__)
 
 
 class DeviceState:
@@ -34,6 +36,27 @@ class DeviceState:
         self.posture_history = []
 
         self.last_notification_time = {"noBlanket": None, "side": None, "prone": None}
+
+    def update_thresholds_from_snapshot(self, new_thresholds):
+        """
+        Cập nhật threshold từ Firebase snapshot listener
+        """
+        old_side = self.side_threshold
+        old_prone = self.prone_threshold
+        old_blanket = self.no_blanket_threshold
+
+        self.side_threshold = new_thresholds.get("sideThreshold", self.side_threshold)
+        self.prone_threshold = new_thresholds.get(
+            "proneThreshold", self.prone_threshold
+        )
+        self.no_blanket_threshold = new_thresholds.get(
+            "noBlanketThreshold", self.no_blanket_threshold
+        )
+
+        logger.info(f"🔄 Threshold updated for device {self.device_id}:")
+        logger.info(f"   Side: {old_side} → {self.side_threshold}")
+        logger.info(f"   Prone: {old_prone} → {self.prone_threshold}")
+        logger.info(f"   No Blanket: {old_blanket} → {self.no_blanket_threshold}")
 
     async def update_position_baby(self, position, timestamp):
         if self.position_baby["position"] == position:

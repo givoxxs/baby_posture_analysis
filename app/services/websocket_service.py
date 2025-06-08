@@ -9,6 +9,7 @@ from app.services.notification_service import (
     send_notifications,
     test_device_connection,
 )
+from app.services.firebase_threshold_listener import get_threshold_listener
 import logging
 
 logger = logging.getLogger(__name__)
@@ -39,6 +40,7 @@ class WebSocketHandler:
     def __init__(self):
         self.devices = {}
         self.manager = ConnectionManager()
+        self.threshold_listener = get_threshold_listener()
 
     async def update_device_online_status(self, device_id, is_online):
         """
@@ -75,6 +77,16 @@ class WebSocketHandler:
 
             device_state = DeviceState(device_id, thresholds)
             self.devices[device_id] = device_state
+
+            # Thiết lập threshold listener cho device này
+            def threshold_callback(new_thresholds):
+                if device_id in self.devices:
+                    self.devices[device_id].update_thresholds_from_snapshot(
+                        new_thresholds
+                    )
+
+            self.threshold_listener.add_device_listener(device_id, threshold_callback)
+            logger.info(f"🔥 Threshold listener activated for device {device_id}")
 
             while True:
                 try:
@@ -199,28 +211,16 @@ class WebSocketHandler:
 
                     check_position = device_state.check_position_baby()
                     if check_position:
-                        # Có alert position, đọc threshold mới từ Firebase
+                        # Threshold đã được cập nhật tự động qua listener, không cần đọc lại
                         logger.info(
-                            f"Position alert detected, reading latest thresholds for device {device_id}"
+                            f"Position alert detected for device {device_id} - using real-time thresholds"
                         )
-                        current_thresholds = await get_device_thresholds(device_id)
-                        device_state.side_threshold = current_thresholds.get(
-                            "sideThreshold", 10
-                        )
-                        device_state.prone_threshold = current_thresholds.get(
-                            "proneThreshold", 10
-                        )
-                        device_state.no_blanket_threshold = current_thresholds.get(
-                            "noBlanketThreshold", 100
+                        logger.info(
+                            f"Current thresholds: side={device_state.side_threshold}, prone={device_state.prone_threshold}, no_blanket={device_state.no_blanket_threshold}"
                         )
 
-                        logger.info(
-                            f"Updated thresholds for device {device_id}: side={device_state.side_threshold}, prone={device_state.prone_threshold}, no_blanket={device_state.no_blanket_threshold}"
-                        )
-
-                        # Kiểm tra lại với threshold mới
-                        check_position_updated = device_state.check_position_baby()
-                        if check_position_updated:
+                        # Kiểm tra với threshold hiện tại
+                        if check_position:
                             now_position = device_state.position_baby["position"]
 
                             threshold = 0
@@ -275,35 +275,19 @@ class WebSocketHandler:
                                         "image_url": image_url,
                                     },
                                 )
-                        else:
-                            logger.info(
-                                f"Position alert cancelled after threshold update for device {device_id}"
-                            )
 
                     check_blanket = device_state.check_blanket_baby()
                     if check_blanket:
-                        # Có alert blanket, đọc threshold mới từ Firebase (nếu chưa đọc trong position check)
+                        # Threshold đã được cập nhật tự động qua listener
                         logger.info(
-                            f"Blanket alert detected, reading latest thresholds for device {device_id}"
+                            f"Blanket alert detected for device {device_id} - using real-time thresholds"
                         )
-                        current_thresholds = await get_device_thresholds(device_id)
-                        device_state.side_threshold = current_thresholds.get(
-                            "sideThreshold", 10
-                        )
-                        device_state.prone_threshold = current_thresholds.get(
-                            "proneThreshold", 10
-                        )
-                        device_state.no_blanket_threshold = current_thresholds.get(
-                            "noBlanketThreshold", 100
+                        logger.info(
+                            f"Current thresholds: side={device_state.side_threshold}, prone={device_state.prone_threshold}, no_blanket={device_state.no_blanket_threshold}"
                         )
 
-                        logger.info(
-                            f"Updated thresholds for device {device_id}: side={device_state.side_threshold}, prone={device_state.prone_threshold}, no_blanket={device_state.no_blanket_threshold}"
-                        )
-
-                        # Kiểm tra lại với threshold mới
-                        check_blanket_updated = device_state.check_blanket_baby()
-                        if check_blanket_updated:
+                        # Kiểm tra với threshold hiện tại
+                        if check_blanket:
                             no_blanket_threshold = device_state.no_blanket_threshold
 
                             logger.info(
@@ -347,10 +331,6 @@ class WebSocketHandler:
                                         "image_url": image_url,
                                     },
                                 )
-                        else:
-                            logger.info(
-                                f"Blanket alert cancelled after threshold update for device {device_id}"
-                            )
 
                 except WebSocketDisconnect:
                     logger.info(f"Device {device_id} disconnected")
@@ -382,6 +362,10 @@ class WebSocketHandler:
         finally:
             try:
                 # await self.update_device_online_status(device_id, False)
+
+                # Remove threshold listener
+                self.threshold_listener.remove_device_listener(device_id)
+                logger.info(f"🔥 Threshold listener removed for device {device_id}")
 
                 # Remove device from the active devices list
                 if device_id in self.devices:
